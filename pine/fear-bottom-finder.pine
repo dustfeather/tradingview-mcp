@@ -181,18 +181,6 @@ plotshape(primaryBuy,   title='Primary Buy',   location=location.belowbar, style
 plotshape(secondaryBuy, title='Secondary Buy', location=location.belowbar, style=shape.circle,       size=size.tiny,   color=color.new(color.green, 40))
 plotshape(sellZone,     title='Sell',          location=location.abovebar, style=shape.triangledown, size=size.normal, color=color.new(color.red, 0),    text='SELL')
 
-plot(ddScore,    title='ddScore',    display=display.data_window)
-plot(rsiScore,   title='rsiScore',   display=display.data_window)
-plot(wvfScore,   title='wvfScore',   display=display.data_window)
-plot(stretchScore, title='stretchScore', display=display.data_window)
-plot(vixScore,   title='vixScore',   display=display.data_window)
-plot(junkScore,  title='junkScore',  display=display.data_window)
-plot(havenScore, title='havenScore', display=display.data_window)
-plot(pcScore,    title='pcScore',    display=display.data_window)
-plot(fearScore,  title='Fear Score',  display=display.data_window)
-plot(greedScore, title='Greed Score', display=display.data_window)
-plot(fgIndex,    title='F&G Index',   display=display.data_window)
-
 // ============ DISPLAY TABLE ============
 tierName = tier == 2 ? 'EXTREME FEAR' : tier == 1 ? 'FEAR' : tier == 0 ? 'NEUTRAL' : tier == -1 ? 'GREED' : 'EXTREME GREED'
 // Color by ACTION: green = fear = buy side, gray = neutral, red = greed = sell side.
