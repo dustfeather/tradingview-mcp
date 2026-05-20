@@ -21,7 +21,7 @@ fearT    = input.int(60, 'Fear threshold',    minval=2, maxval=99, group='Tiers'
 extremeT = input.int(80, 'Extreme threshold', minval=3, maxval=99, group='Tiers')
 
 // --- Buy zone ---
-buyThresh = input.int(60, 'Buy zone min fear score', minval=10, maxval=99, group='Buy Zone', tooltip='Lowest fear score that can trigger a buy. 60 = FEAR tier (orange) and above, 80 = EXTREME only (red).')
+buyThresh = input.int(80, 'Buy zone min fear score', minval=10, maxval=99, group='Buy Zone', tooltip='Lowest fear score that can trigger a buy. 60 = FEAR tier (orange) and above, 80 = EXTREME only (red).')
 
 // --- Display ---
 verbose = input.bool(false, 'Verbose breakdown table', group='Display')
