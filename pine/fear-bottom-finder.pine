@@ -12,15 +12,8 @@ volMult    = input.float(2.0,  'Capitulation volume x 20-bar avg',   minval=1.0,
 useMarketData = input.bool(true,  'Use S&P market factors',          group='Market Factors')
 usePutCall    = input.bool(true,  'Use Put/Call ratio (USI:PCC)',    group='Market Factors')
 
-// --- Weights ---
-wDD      = input.float(1.0, 'Weight: Drawdown',          minval=0.0, group='Weights')
-wRSI     = input.float(1.0, 'Weight: RSI',               minval=0.0, group='Weights')
-wWVF     = input.float(1.0, 'Weight: Williams VIX Fix',  minval=0.0, group='Weights')
-wStretch = input.float(1.0, 'Weight: Stretch 200MA',     minval=0.0, group='Weights')
-wVIX     = input.float(1.0, 'Weight: VIX',               minval=0.0, group='Weights')
-wJunk    = input.float(1.0, 'Weight: Junk bond demand',  minval=0.0, group='Weights')
-wHaven   = input.float(1.0, 'Weight: Safe-haven demand', minval=0.0, group='Weights')
-wPC      = input.float(1.0, 'Weight: Put/Call',          minval=0.0, group='Weights')
+// --- Composite ---
+topN = input.int(4, 'Factors averaged (strongest N)', minval=1, maxval=8, group='Composite', tooltip='Fear Score = average of the N highest-scoring factors. Lower N = more reactive (a few alarmed factors lift the score); higher N = more agreement required.')
 
 // --- Tiers ---
 cautionT = input.int(40, 'Caution threshold', minval=1, maxval=98, group='Tiers')
@@ -83,16 +76,36 @@ pccRatio = na(pccClose) or na(pccAvg) ? na : pccClose / pccAvg
 pcScore  = scale(pccRatio, 0.95, 1.4)
 
 // ============ COMPOSITE ============
-// Weighted average over factors that are not na. A na factor contributes
-// nothing to either the weight sum or the weighted-value sum.
-fW(float sc, float w)  => na(sc) ? 0.0 : w
-fWV(float sc, float w) => na(sc) ? 0.0 : sc * w
-
-totW = fW(ddScore, wDD) + fW(rsiScore, wRSI) + fW(wvfScore, wWVF) + fW(stretchScore, wStretch) + fW(vixScore, wVIX) + fW(junkScore, wJunk) + fW(havenScore, wHaven) + fW(pcScore, wPC)
-
-totWV = fWV(ddScore, wDD) + fWV(rsiScore, wRSI) + fWV(wvfScore, wWVF) + fWV(stretchScore, wStretch) + fWV(vixScore, wVIX) + fWV(junkScore, wJunk) + fWV(havenScore, wHaven) + fWV(pcScore, wPC)
-
-fearScore = totW > 0.0 ? totWV / totW : na
+// Fear Score = average of the topN strongest factors. A plain average of all 8
+// would be diluted by factors sitting near 0, so the score could never reach the
+// high tiers. Averaging only the strongest factors lets genuine, multi-factor
+// fear actually register. na factors (e.g. a missing feed) are simply not added.
+var liveScores = array.new<float>()
+array.clear(liveScores)
+if not na(ddScore)
+    array.push(liveScores, ddScore)
+if not na(rsiScore)
+    array.push(liveScores, rsiScore)
+if not na(wvfScore)
+    array.push(liveScores, wvfScore)
+if not na(stretchScore)
+    array.push(liveScores, stretchScore)
+if not na(vixScore)
+    array.push(liveScores, vixScore)
+if not na(junkScore)
+    array.push(liveScores, junkScore)
+if not na(havenScore)
+    array.push(liveScores, havenScore)
+if not na(pcScore)
+    array.push(liveScores, pcScore)
+array.sort(liveScores, order.descending)
+nUse = math.min(topN, array.size(liveScores))
+float fearScore = na
+if nUse > 0
+    float acc = 0.0
+    for i = 0 to nUse - 1
+        acc += array.get(liveScores, i)
+    fearScore := acc / nUse
 
 // ============ TIERS ============
 tier = na(fearScore) ? 0 : fearScore >= extremeT ? 3 : fearScore >= fearT ? 2 : fearScore >= cautionT ? 1 : 0
@@ -136,7 +149,8 @@ tierName = tier == 3 ? 'EXTREME FEAR' : tier == 2 ? 'FEAR' : tier == 1 ? 'CAUTIO
 // Color the table by BUY OPPORTUNITY (not by fear): gray when there is nothing to
 // do (low fear), turning progressively greener as fear deepens, bright green at
 // EXTREME fear = the buy zone. Green always means "buy" — matching the BUY marker.
-// All cell colors are fully OPAQUE so chart candles never show through the table.
+// All cell colors are fully OPAQUE and clearly lighter than the dark chart so the
+// table reads as a solid panel.
 tierCol = tier == 3 ? color.rgb(0, 175, 0) : tier == 2 ? color.rgb(30, 130, 30) : tier == 1 ? color.rgb(70, 110, 70) : color.rgb(120, 120, 120)
 cellHdr = color.rgb(95, 100, 110)
 cellSub = color.rgb(75, 80, 90)
