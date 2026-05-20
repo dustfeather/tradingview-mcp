@@ -10,7 +10,7 @@ volMult    = input.float(2.0,  'Capitulation volume x 20-bar avg',   minval=1.0,
 
 // --- Market factors ---
 useMarketData = input.bool(true,  'Use S&P market factors',          group='Market Factors')
-usePutCall    = input.bool(false, 'Use Put/Call ratio (USI:PCC)',    group='Market Factors')
+usePutCall    = input.bool(true,  'Use Put/Call ratio (USI:PCC)',    group='Market Factors')
 
 // --- Weights ---
 wDD      = input.float(1.0, 'Weight: Drawdown',          minval=0.0, group='Weights')
