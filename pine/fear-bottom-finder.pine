@@ -5,7 +5,8 @@ indicator(title='Fear Bottom Finder', shorttitle='FearBtm', overlay=true, max_la
 // --- Symbol factors ---
 ddMax      = input.float(20.0, 'Drawdown % for max score',           minval=1.0,  group='Symbol Factors')
 rsiFloor   = input.int(25,     'RSI floor (max fear)',               minval=1, maxval=49, group='Symbol Factors')
-stretchMax = input.float(15.0, 'Stretch % below 200MA for max score', minval=1.0, group='Symbol Factors')
+rsiCeil    = input.int(75,     'RSI ceiling (max greed)',            minval=51, maxval=99, group='Symbol Factors')
+stretchMax = input.float(15.0, 'Stretch % vs 200MA for max score',   minval=1.0, group='Symbol Factors')
 volMult    = input.float(2.0,  'Capitulation volume x 20-bar avg',   minval=1.0,  group='Symbol Factors')
 
 // --- Market factors ---
@@ -13,15 +14,17 @@ useMarketData = input.bool(true,  'Use S&P market factors',          group='Mark
 usePutCall    = input.bool(true,  'Use Put/Call ratio (USI:PCC)',    group='Market Factors')
 
 // --- Composite ---
-topN = input.int(4, 'Factors averaged (strongest N)', minval=1, maxval=8, group='Composite', tooltip='Fear Score = average of the N highest-scoring factors. Lower N = more reactive (a few alarmed factors lift the score); higher N = more agreement required.')
+topN = input.int(4, 'Factors averaged (strongest N)', minval=1, maxval=8, group='Composite', tooltip='Each side (fear, greed) scores as the average of its N strongest factors. A plain average of all factors would be diluted by the ones sitting near 0.')
 
-// --- Tiers ---
-cautionT = input.int(40, 'Caution threshold', minval=1, maxval=98, group='Tiers')
-fearT    = input.int(60, 'Fear threshold',    minval=2, maxval=99, group='Tiers')
-extremeT = input.int(80, 'Extreme threshold', minval=3, maxval=99, group='Tiers')
+// --- Tiers (Fear & Greed spectrum: 0 = extreme greed ... 100 = extreme fear) ---
+extremeFearT  = input.int(80, 'Extreme Fear threshold',  minval=55, maxval=99, group='Tiers')
+fearT         = input.int(60, 'Fear threshold',          minval=51, maxval=98, group='Tiers')
+greedT        = input.int(40, 'Greed threshold',         minval=2,  maxval=49, group='Tiers')
+extremeGreedT = input.int(20, 'Extreme Greed threshold', minval=1,  maxval=45, group='Tiers')
 
-// --- Buy zone ---
-buyThresh = input.int(80, 'Buy zone min fear score', minval=10, maxval=99, group='Buy Zone', tooltip='Lowest fear score that can trigger a buy. 60 = FEAR tier (orange) and above, 80 = EXTREME only (red).')
+// --- Signals ---
+buyThresh  = input.int(80, 'Buy zone: min F&G index',  minval=10, maxval=99, group='Signals', tooltip='F&G index at/above this = buy zone. 80 = EXTREME FEAR, 60 = FEAR and above.')
+sellThresh = input.int(20, 'Sell zone: max F&G index', minval=1,  maxval=90, group='Signals', tooltip='F&G index at/below this = sell zone. 20 = EXTREME GREED, 40 = GREED and below.')
 
 // --- Display ---
 verbose = input.bool(false, 'Verbose breakdown table', group='Display')
@@ -31,16 +34,28 @@ verbose = input.bool(false, 'Verbose breakdown table', group='Display')
 scale(float val, float loVal, float hiVal) =>
     na(val) ? na : math.min(math.max((val - loVal) / (hiVal - loVal) * 100.0, 0.0), 100.0)
 
+// Average of the topN largest elements of arr (sorts arr in place). na if empty.
+topNAvg(array<float> arr, int n) =>
+    array.sort(arr, order.descending)
+    int use = math.min(n, array.size(arr))
+    float result = na
+    if use > 0
+        float acc = 0.0
+        for i = 0 to use - 1
+            acc += array.get(arr, i)
+        result := acc / use
+    result
+
 // ============ SYMBOL FACTORS ============
 hh252      = ta.highest(close, 252)
 ddPct      = (hh252 - close) / hh252 * 100.0
 ddScore    = scale(ddPct, 0.0, ddMax)
 
 rsiVal     = ta.rsi(close, 14)
-rsiScore   = scale(rsiVal, 50.0, rsiFloor)          // inverted bounds: RSI 50 -> 0, rsiFloor -> 100
+rsiScore   = scale(rsiVal, 50.0, rsiFloor)          // fear: RSI 50 -> 0, rsiFloor -> 100
 
 sma200     = ta.sma(close, 200)
-stretchPct = (sma200 - close) / sma200 * 100.0
+stretchPct = (sma200 - close) / sma200 * 100.0      // positive when price is BELOW the 200MA
 stretchScore = scale(stretchPct, 0.0, stretchMax)
 
 hh22close  = ta.highest(close, 22)
@@ -67,7 +82,7 @@ junkScore = na(junkRatio) or na(junkAvg) ? na : scale(junkRatio, junkAvg * 1.02,
 spxRet    = useMarketData ? request.security('SP:SPX',     'D', (close - close[20]) / close[20] * 100.0) : na
 tltRet    = useMarketData ? request.security('NASDAQ:TLT', 'D', (close - close[20]) / close[20] * 100.0) : na
 havenDiff = na(spxRet) or na(tltRet) ? na : spxRet - tltRet
-havenScore = scale(havenDiff, 5.0, -10.0)           // inverted: +5% stocks lead -> 0, -10% -> 100
+havenScore = scale(havenDiff, 5.0, -10.0)           // fear: +5% stocks lead -> 0, -10% -> 100
 
 // Put/Call ratio. Behind its own sub-toggle: USI:PCC can be na on some plans.
 pccClose = usePutCall ? request.security('USI:PCC', 'D', close)             : na
@@ -75,48 +90,74 @@ pccAvg   = usePutCall ? request.security('USI:PCC', 'D', ta.sma(close, 20)) : na
 pccRatio = na(pccClose) or na(pccAvg) ? na : pccClose / pccAvg
 pcScore  = scale(pccRatio, 0.95, 1.4)
 
+// ============ GREED FACTORS ============
+// Mirror of the fear factors: each measures complacency / euphoria / risk-on.
+gRsiScore     = scale(rsiVal, 50.0, rsiCeil)                         // RSI overbought
+gStretchScore = scale(-stretchPct, 0.0, stretchMax)                  // price extended ABOVE 200MA
+gWvfScore     = scale(wvfScore, 50.0, 0.0)                           // VIX Fix complacent (low percentile)
+gVixScore     = scale(vixRatio, 1.0, 0.75)                           // VIX well below its 50d avg
+gJunkScore    = na(junkRatio) or na(junkAvg) ? na : scale(junkRatio, junkAvg * 0.98, junkAvg * 1.08) // junk bid up
+gHavenScore   = scale(havenDiff, 0.0, 15.0)                          // stocks crushing bonds
+gPcScore      = scale(pccRatio, 1.05, 0.70)                          // put/call low = call-buying greed
+
 // ============ COMPOSITE ============
-// Fear Score = average of the topN strongest factors. A plain average of all 8
-// would be diluted by factors sitting near 0, so the score could never reach the
-// high tiers. Averaging only the strongest factors lets genuine, multi-factor
-// fear actually register. na factors (e.g. a missing feed) are simply not added.
-var liveScores = array.new<float>()
-array.clear(liveScores)
+// fearScore / greedScore = average of each side's topN strongest factors. Using
+// only the strongest avoids a plain average being diluted toward 0 by quiet
+// factors. The two are combined into a single Fear & Greed index:
+//   fgIndex = 50 + (fearScore - greedScore) / 2   ->   0 = extreme greed, 100 = extreme fear.
+var fearArr = array.new<float>()
+array.clear(fearArr)
 if not na(ddScore)
-    array.push(liveScores, ddScore)
+    array.push(fearArr, ddScore)
 if not na(rsiScore)
-    array.push(liveScores, rsiScore)
+    array.push(fearArr, rsiScore)
 if not na(wvfScore)
-    array.push(liveScores, wvfScore)
+    array.push(fearArr, wvfScore)
 if not na(stretchScore)
-    array.push(liveScores, stretchScore)
+    array.push(fearArr, stretchScore)
 if not na(vixScore)
-    array.push(liveScores, vixScore)
+    array.push(fearArr, vixScore)
 if not na(junkScore)
-    array.push(liveScores, junkScore)
+    array.push(fearArr, junkScore)
 if not na(havenScore)
-    array.push(liveScores, havenScore)
+    array.push(fearArr, havenScore)
 if not na(pcScore)
-    array.push(liveScores, pcScore)
-array.sort(liveScores, order.descending)
-nUse = math.min(topN, array.size(liveScores))
-float fearScore = na
-if nUse > 0
-    float acc = 0.0
-    for i = 0 to nUse - 1
-        acc += array.get(liveScores, i)
-    fearScore := acc / nUse
+    array.push(fearArr, pcScore)
+fearScore = topNAvg(fearArr, topN)
+
+var greedArr = array.new<float>()
+array.clear(greedArr)
+if not na(gRsiScore)
+    array.push(greedArr, gRsiScore)
+if not na(gStretchScore)
+    array.push(greedArr, gStretchScore)
+if not na(gWvfScore)
+    array.push(greedArr, gWvfScore)
+if not na(gVixScore)
+    array.push(greedArr, gVixScore)
+if not na(gJunkScore)
+    array.push(greedArr, gJunkScore)
+if not na(gHavenScore)
+    array.push(greedArr, gHavenScore)
+if not na(gPcScore)
+    array.push(greedArr, gPcScore)
+greedScore = topNAvg(greedArr, topN)
+
+float fgIndex = na
+if not na(fearScore) and not na(greedScore)
+    fgIndex := math.min(math.max(50.0 + (fearScore - greedScore) / 2.0, 0.0), 100.0)
 
 // ============ TIERS ============
-tier = na(fearScore) ? 0 : fearScore >= extremeT ? 3 : fearScore >= fearT ? 2 : fearScore >= cautionT ? 1 : 0
+// tier:  2 = extreme fear, 1 = fear, 0 = neutral, -1 = greed, -2 = extreme greed
+tier = na(fgIndex) ? 0 : fgIndex >= extremeFearT ? 2 : fgIndex >= fearT ? 1 : fgIndex > greedT ? 0 : fgIndex > extremeGreedT ? -1 : -2
 
-bgCol = tier == 3 ? color.new(color.red, 80) : tier == 2 ? color.new(color.orange, 85) : tier == 1 ? color.new(color.yellow, 88) : na
-bgcolor(bgCol, title='Fear Tier Background')
+bgCol = tier == 2 ? color.new(color.red, 80) : tier == 1 ? color.new(color.orange, 85) : tier == -1 ? color.new(color.blue, 88) : tier == -2 ? color.new(color.purple, 85) : na
+bgcolor(bgCol, title='Fear/Greed Tier Background')
 
 // ============ BUY ZONE ============
-// Buy when fear is at or above buyThresh AND an exhaustion trigger confirms
-// (capitulation volume, or Williams VIX Fix rolling off an elevated peak).
-inBuyZone = not na(fearScore) and fearScore >= buyThresh
+// Buy when the index is at/above buyThresh (fear) AND an exhaustion trigger
+// confirms (capitulation volume, or Williams VIX Fix rolling off a high peak).
+inBuyZone = not na(fgIndex) and fgIndex >= buyThresh
 capVol  = volume > ta.sma(volume, 20) * volMult
 wvfRoll = wvf < wvf[1] and wvf[1] >= wvf[2] and wvfScore[1] > 80
 buyZone = inBuyZone and (capVol or wvfRoll)
@@ -131,53 +172,72 @@ if primaryBuy
     boughtThisMonth := true
 secondaryBuy = buyZone and boughtThisMonth and not primaryBuy
 
-plotshape(primaryBuy,   title='Primary Buy',   location=location.belowbar, style=shape.triangleup, size=size.normal, color=color.new(color.green, 0),  text='BUY')
-plotshape(secondaryBuy, title='Secondary Buy', location=location.belowbar, style=shape.circle,     size=size.tiny,   color=color.new(color.green, 40))
+// ============ SELL ZONE ============
+// Sell when the index was in the greed zone and is now turning back up (euphoria
+// fading). Sells are exits — they may fire any time, with no once-per-month limit.
+sellZone = not na(fgIndex[1]) and fgIndex[1] <= sellThresh and fgIndex > fgIndex[1] and fgIndex[1] <= fgIndex[2]
 
-plot(ddScore,      title='ddScore',      display=display.data_window)
-plot(rsiScore,     title='rsiScore',     display=display.data_window)
-plot(wvfScore,     title='wvfScore',     display=display.data_window)
+plotshape(primaryBuy,   title='Primary Buy',   location=location.belowbar, style=shape.triangleup,   size=size.normal, color=color.new(color.green, 0),  text='BUY')
+plotshape(secondaryBuy, title='Secondary Buy', location=location.belowbar, style=shape.circle,       size=size.tiny,   color=color.new(color.green, 40))
+plotshape(sellZone,     title='Sell',          location=location.abovebar, style=shape.triangledown, size=size.normal, color=color.new(color.red, 0),    text='SELL')
+
+plot(ddScore,    title='ddScore',    display=display.data_window)
+plot(rsiScore,   title='rsiScore',   display=display.data_window)
+plot(wvfScore,   title='wvfScore',   display=display.data_window)
 plot(stretchScore, title='stretchScore', display=display.data_window)
-plot(vixScore,     title='vixScore',     display=display.data_window)
-plot(junkScore,    title='junkScore',    display=display.data_window)
-plot(havenScore,   title='havenScore',   display=display.data_window)
-plot(pcScore,      title='pcScore',      display=display.data_window)
-plot(fearScore, title='Fear Score', display=display.data_window)
+plot(vixScore,   title='vixScore',   display=display.data_window)
+plot(junkScore,  title='junkScore',  display=display.data_window)
+plot(havenScore, title='havenScore', display=display.data_window)
+plot(pcScore,    title='pcScore',    display=display.data_window)
+plot(fearScore,  title='Fear Score',  display=display.data_window)
+plot(greedScore, title='Greed Score', display=display.data_window)
+plot(fgIndex,    title='F&G Index',   display=display.data_window)
 
 // ============ DISPLAY TABLE ============
-tierName = tier == 3 ? 'EXTREME FEAR' : tier == 2 ? 'FEAR' : tier == 1 ? 'CAUTION' : 'NEUTRAL'
-// Color the table by BUY OPPORTUNITY (not by fear): gray when there is nothing to
-// do (low fear), turning progressively greener as fear deepens, bright green at
-// EXTREME fear = the buy zone. Green always means "buy" — matching the BUY marker.
-// All cell colors are fully OPAQUE and clearly lighter than the dark chart so the
-// table reads as a solid panel.
-tierCol = tier == 3 ? color.rgb(0, 175, 0) : tier == 2 ? color.rgb(30, 130, 30) : tier == 1 ? color.rgb(70, 110, 70) : color.rgb(120, 120, 120)
+tierName = tier == 2 ? 'EXTREME FEAR' : tier == 1 ? 'FEAR' : tier == 0 ? 'NEUTRAL' : tier == -1 ? 'GREED' : 'EXTREME GREED'
+// Color by ACTION: green = fear = buy side, gray = neutral, red = greed = sell side.
+// All cell colors are fully OPAQUE and clearly lighter than the dark chart.
+tierCol = tier == 2 ? color.rgb(0, 175, 0) : tier == 1 ? color.rgb(40, 120, 40) : tier == 0 ? color.rgb(120, 120, 120) : tier == -1 ? color.rgb(150, 65, 65) : color.rgb(200, 25, 25)
 cellHdr = color.rgb(95, 100, 110)
 cellSub = color.rgb(75, 80, 90)
 
 // Sub-scores are 0-100 readings, shown as percentages.
 f_cellStr(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc)) + '%'
 
-var table t = table.new(position.middle_left, 2, 10, border_width=1)
+var table t = table.new(position.middle_left, 2, 18, border_width=1)
 if barstate.islast
-    table.cell(t, 0, 0, 'Fear Score', text_color=color.white, bgcolor=cellHdr)
-    table.cell(t, 1, 0, f_cellStr(fearScore), text_color=color.white, bgcolor=tierCol)
+    table.cell(t, 0, 0, 'F&G Index', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 0, f_cellStr(fgIndex), text_color=color.white, bgcolor=tierCol)
     table.cell(t, 0, 1, 'Tier', text_color=color.white, bgcolor=cellHdr)
     table.cell(t, 1, 1, tierName, text_color=color.white, bgcolor=tierCol)
     if verbose
-        table.cell(t, 0, 2, 'Drawdown',  text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 2, f_cellStr(ddScore),      text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 3, 'RSI',       text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 3, f_cellStr(rsiScore),     text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 4, 'WVF',       text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 4, f_cellStr(wvfScore),     text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 5, 'Stretch',   text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 5, f_cellStr(stretchScore), text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 6, 'VIX',       text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 6, f_cellStr(vixScore),     text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 7, 'Junk',      text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 7, f_cellStr(junkScore),    text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 8, 'Haven',     text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 8, f_cellStr(havenScore),   text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 0, 9, 'Put/Call',  text_color=color.white, bgcolor=cellSub)
-        table.cell(t, 1, 9, f_cellStr(pcScore),      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 2,  'F: Drawdown', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 2,  f_cellStr(ddScore),      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 3,  'F: RSI',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 3,  f_cellStr(rsiScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 4,  'F: WVF',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 4,  f_cellStr(wvfScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 5,  'F: Stretch',  text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 5,  f_cellStr(stretchScore), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 6,  'F: VIX',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 6,  f_cellStr(vixScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 7,  'F: Junk',     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 7,  f_cellStr(junkScore),    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 8,  'F: Haven',    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 8,  f_cellStr(havenScore),   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 9,  'F: Put/Call', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 9,  f_cellStr(pcScore),      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 10, 'G: RSI',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 10, f_cellStr(gRsiScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 11, 'G: Stretch',  text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 11, f_cellStr(gStretchScore), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 12, 'G: WVF',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 12, f_cellStr(gWvfScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 13, 'G: VIX',      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 13, f_cellStr(gVixScore),     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 14, 'G: Junk',     text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 14, f_cellStr(gJunkScore),    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 15, 'G: Haven',    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 15, f_cellStr(gHavenScore),   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 16, 'G: Put/Call', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 16, f_cellStr(gPcScore),      text_color=color.white, bgcolor=cellSub)
