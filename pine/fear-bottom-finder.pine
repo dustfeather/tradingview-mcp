@@ -1,0 +1,38 @@
+//@version=6
+indicator(title='Fear Bottom Finder', shorttitle='FearBtm', overlay=true, max_labels_count=100)
+
+// ============ INPUTS ============
+// --- Symbol factors ---
+ddMax      = input.float(20.0, 'Drawdown % for max score',           minval=1.0,  group='Symbol Factors')
+rsiFloor   = input.int(25,     'RSI floor (max fear)',               minval=1, maxval=49, group='Symbol Factors')
+stretchMax = input.float(15.0, 'Stretch % below 200MA for max score', minval=1.0, group='Symbol Factors')
+volMult    = input.float(2.0,  'Capitulation volume x 20-bar avg',   minval=1.0,  group='Symbol Factors')
+
+// --- Market factors ---
+useMarketData = input.bool(true,  'Use S&P market factors',          group='Market Factors')
+usePutCall    = input.bool(false, 'Use Put/Call ratio (USI:PCC)',    group='Market Factors')
+
+// --- Weights ---
+wDD      = input.float(1.0, 'Weight: Drawdown',          minval=0.0, group='Weights')
+wRSI     = input.float(1.0, 'Weight: RSI',               minval=0.0, group='Weights')
+wWVF     = input.float(1.0, 'Weight: Williams VIX Fix',  minval=0.0, group='Weights')
+wStretch = input.float(1.0, 'Weight: Stretch 200MA',     minval=0.0, group='Weights')
+wVIX     = input.float(1.0, 'Weight: VIX',               minval=0.0, group='Weights')
+wJunk    = input.float(1.0, 'Weight: Junk bond demand',  minval=0.0, group='Weights')
+wHaven   = input.float(1.0, 'Weight: Safe-haven demand', minval=0.0, group='Weights')
+wPC      = input.float(1.0, 'Weight: Put/Call',          minval=0.0, group='Weights')
+
+// --- Tiers ---
+cautionT = input.int(40, 'Caution threshold', minval=1, maxval=98, group='Tiers')
+fearT    = input.int(60, 'Fear threshold',    minval=2, maxval=99, group='Tiers')
+extremeT = input.int(80, 'Extreme threshold', minval=3, maxval=99, group='Tiers')
+
+// --- Display ---
+verbose = input.bool(false, 'Verbose breakdown table', group='Display')
+
+// ============ HELPERS ============
+// Map val into 0-100, clamped. Works with loVal>hiVal (inverted) too.
+scale(float val, float loVal, float hiVal) =>
+    na(val) ? na : math.min(math.max((val - loVal) / (hiVal - loVal) * 100.0, 0.0), 100.0)
+
+plot(close, title='_anchor', display=display.none)
