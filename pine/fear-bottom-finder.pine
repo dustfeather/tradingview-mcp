@@ -97,6 +97,25 @@ tier = na(fearScore) ? 0 : fearScore >= extremeT ? 3 : fearScore >= fearT ? 2 : 
 bgCol = tier == 3 ? color.new(color.red, 80) : tier == 2 ? color.new(color.orange, 85) : tier == 1 ? color.new(color.yellow, 88) : na
 bgcolor(bgCol, title='Fear Tier Background')
 
+// ============ BUY ZONE ============
+extreme = not na(fearScore) and fearScore >= extremeT
+capVol  = volume > ta.sma(volume, 20) * volMult
+wvfRoll = wvf < wvf[1] and wvf[1] >= wvf[2] and ta.percentrank(wvf, 252)[1] > 80
+buyZone = extreme and (capVol or wvfRoll)
+
+// One primary buy per calendar month; later qualifying bars are secondary.
+newMonth = ta.change(month(time)) != 0
+var bool boughtThisMonth = false
+if newMonth
+    boughtThisMonth := false
+primaryBuy = buyZone and not boughtThisMonth
+if primaryBuy
+    boughtThisMonth := true
+secondaryBuy = buyZone and boughtThisMonth and not primaryBuy
+
+plotshape(primaryBuy,   title='Primary Buy',   location=location.belowbar, style=shape.triangleup, size=size.normal, color=color.new(color.green, 0),  text='BUY')
+plotshape(secondaryBuy, title='Secondary Buy', location=location.belowbar, style=shape.circle,     size=size.tiny,   color=color.new(color.green, 40))
+
 plot(ddScore,      title='ddScore',      display=display.data_window)
 plot(rsiScore,     title='rsiScore',     display=display.data_window)
 plot(wvfScore,     title='wvfScore',     display=display.data_window)
