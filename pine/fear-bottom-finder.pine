@@ -132,9 +132,9 @@ tierName = tier == 3 ? 'EXTREME FEAR' : tier == 2 ? 'FEAR' : tier == 1 ? 'CAUTIO
 // do (low fear), turning progressively greener as fear deepens, bright green at
 // EXTREME fear = the buy zone. Green always means "buy" — matching the BUY marker.
 // All cell colors are fully OPAQUE so chart candles never show through the table.
-tierCol = tier == 3 ? color.rgb(0, 170, 0) : tier == 2 ? color.rgb(20, 120, 20) : tier == 1 ? color.rgb(48, 78, 48) : color.rgb(80, 80, 80)
-cellHdr = color.rgb(45, 45, 45)
-cellSub = color.rgb(55, 55, 55)
+tierCol = tier == 3 ? color.rgb(0, 175, 0) : tier == 2 ? color.rgb(30, 130, 30) : tier == 1 ? color.rgb(70, 110, 70) : color.rgb(120, 120, 120)
+cellHdr = color.rgb(95, 100, 110)
+cellSub = color.rgb(75, 80, 90)
 
 // Sub-scores are 0-100 readings, shown as percentages.
 f_cellStr(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc)) + '%'
