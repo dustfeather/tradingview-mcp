@@ -151,8 +151,9 @@ if not na(fearScore) and not na(greedScore)
 // tier:  2 = extreme fear, 1 = fear, 0 = neutral, -1 = greed, -2 = extreme greed
 tier = na(fgIndex) ? 0 : fgIndex >= extremeFearT ? 2 : fgIndex >= fearT ? 1 : fgIndex > greedT ? 0 : fgIndex > extremeGreedT ? -1 : -2
 
-bgCol = tier == 2 ? color.new(color.red, 80) : tier == 1 ? color.new(color.orange, 85) : tier == -1 ? color.new(color.blue, 88) : tier == -2 ? color.new(color.purple, 85) : na
-bgcolor(bgCol, title='Fear/Greed Tier Background')
+// Candles are colored by Fear/Greed tier instead of a chart background.
+barColor = tier == 2 ? color.red : tier == 1 ? color.orange : tier == 0 ? color.gray : tier == -1 ? color.rgb(100, 170, 255) : color.green
+barcolor(barColor, title='Fear/Greed Candle Color')
 
 // ============ BUY ZONE ============
 // Buy when the index is at/above buyThresh (fear) AND an exhaustion trigger
