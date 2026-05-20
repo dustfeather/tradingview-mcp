@@ -128,15 +128,18 @@ plot(fearScore, title='Fear Score', display=display.data_window)
 
 // ============ DISPLAY TABLE ============
 tierName = tier == 3 ? 'EXTREME FEAR' : tier == 2 ? 'FEAR' : tier == 1 ? 'CAUTION' : 'NEUTRAL'
-tierCol  = tier == 3 ? color.red : tier == 2 ? color.orange : tier == 1 ? color.yellow : color.gray
+// Color the table by fear score: green (calm) -> yellow -> orange -> red (extreme fear).
+tierCol  = tier == 3 ? color.red : tier == 2 ? color.orange : tier == 1 ? color.yellow : color.green
+tierColFaint = color.new(tierCol, 70)
 
-f_cellStr(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc))
+// Sub-scores are 0-100 readings, shown as percentages.
+f_cellStr(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc)) + '%'
 
-var table t = table.new(position.bottom_left, 2, 10, border_width=1)
+var table t = table.new(position.top_left, 2, 10, border_width=1)
 if barstate.islast
-    table.cell(t, 0, 0, 'Fear Score', text_color=color.white, bgcolor=color.new(color.gray, 0))
-    table.cell(t, 1, 0, na(fearScore) ? 'n/a' : str.tostring(math.round(fearScore)), text_color=color.black, bgcolor=tierCol)
-    table.cell(t, 0, 1, 'Tier', text_color=color.white, bgcolor=color.new(color.gray, 0))
+    table.cell(t, 0, 0, 'Fear Score', text_color=color.white, bgcolor=tierColFaint)
+    table.cell(t, 1, 0, f_cellStr(fearScore), text_color=color.black, bgcolor=tierCol)
+    table.cell(t, 0, 1, 'Tier', text_color=color.white, bgcolor=tierColFaint)
     table.cell(t, 1, 1, tierName, text_color=color.black, bgcolor=tierCol)
     if verbose
         table.cell(t, 0, 2, 'Drawdown',  text_color=color.white, bgcolor=color.new(color.gray, 30))
