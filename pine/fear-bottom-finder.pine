@@ -27,6 +27,9 @@ cautionT = input.int(40, 'Caution threshold', minval=1, maxval=98, group='Tiers'
 fearT    = input.int(60, 'Fear threshold',    minval=2, maxval=99, group='Tiers')
 extremeT = input.int(80, 'Extreme threshold', minval=3, maxval=99, group='Tiers')
 
+// --- Buy zone ---
+buyThresh = input.int(60, 'Buy zone min fear score', minval=10, maxval=99, group='Buy Zone', tooltip='Lowest fear score that can trigger a buy. 60 = FEAR tier (orange) and above, 80 = EXTREME only (red).')
+
 // --- Display ---
 verbose = input.bool(false, 'Verbose breakdown table', group='Display')
 
@@ -98,10 +101,12 @@ bgCol = tier == 3 ? color.new(color.red, 80) : tier == 2 ? color.new(color.orang
 bgcolor(bgCol, title='Fear Tier Background')
 
 // ============ BUY ZONE ============
-extreme = not na(fearScore) and fearScore >= extremeT
+// Buy when fear is at or above buyThresh AND an exhaustion trigger confirms
+// (capitulation volume, or Williams VIX Fix rolling off an elevated peak).
+inBuyZone = not na(fearScore) and fearScore >= buyThresh
 capVol  = volume > ta.sma(volume, 20) * volMult
 wvfRoll = wvf < wvf[1] and wvf[1] >= wvf[2] and wvfScore[1] > 80
-buyZone = extreme and (capVol or wvfRoll)
+buyZone = inBuyZone and (capVol or wvfRoll)
 
 // One primary buy per calendar month; later qualifying bars are secondary.
 newMonth = ta.change(month(time)) != 0
