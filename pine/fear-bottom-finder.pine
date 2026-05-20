@@ -51,9 +51,41 @@ hh22close  = ta.highest(close, 22)
 wvf        = (hh22close - low) / hh22close * 100.0
 wvfScore   = ta.percentrank(wvf, 252)               // already 0-100
 
+// ============ MARKET FACTORS ============
+// VIX vs its own 50-day SMA. Ratio > 1 = elevated fear.
+vixClose = useMarketData ? request.security('CBOE:VIX', 'D', close)               : na
+vixSma   = useMarketData ? request.security('CBOE:VIX', 'D', ta.sma(close, 50))   : na
+vixRatio = na(vixClose) or na(vixSma) ? na : vixClose / vixSma
+vixScore = scale(vixRatio, 1.0, 1.5)
+
+// Junk bond demand: HYG/LQD ratio falling = credit stress = fear.
+hygClose  = useMarketData ? request.security('AMEX:HYG', 'D', close) : na
+lqdClose  = useMarketData ? request.security('AMEX:LQD', 'D', close) : na
+junkRatio = na(hygClose) or na(lqdClose) ? na : hygClose / lqdClose
+junkAvg   = ta.sma(junkRatio, 50)
+junkScore = na(junkRatio) or na(junkAvg) ? na : scale(junkRatio, junkAvg * 1.02, junkAvg * 0.92)
+
+// Safe-haven demand: SPX 20d return minus TLT 20d return. Negative = flight to bonds.
+spxClose  = useMarketData ? request.security('SP:SPX',      'D', close) : na
+tltClose  = useMarketData ? request.security('NASDAQ:TLT',  'D', close) : na
+spxRet    = na(spxClose) or na(spxClose[20]) ? na : (spxClose - spxClose[20]) / spxClose[20] * 100.0
+tltRet    = na(tltClose) or na(tltClose[20]) ? na : (tltClose - tltClose[20]) / tltClose[20] * 100.0
+havenDiff = na(spxRet) or na(tltRet) ? na : spxRet - tltRet
+havenScore = scale(havenDiff, 5.0, -10.0)           // inverted: +5% stocks lead -> 0, -10% -> 100
+
+// Put/Call ratio. Behind its own sub-toggle: USI:PCC can be na on some plans.
+pccClose = usePutCall ? request.security('USI:PCC', 'D', close)             : na
+pccAvg   = usePutCall ? request.security('USI:PCC', 'D', ta.sma(close, 20)) : na
+pccRatio = na(pccClose) or na(pccAvg) ? na : pccClose / pccAvg
+pcScore  = scale(pccRatio, 0.95, 1.4)
+
 plot(ddScore,      title='ddScore',      display=display.data_window)
 plot(rsiScore,     title='rsiScore',     display=display.data_window)
 plot(wvfScore,     title='wvfScore',     display=display.data_window)
 plot(stretchScore, title='stretchScore', display=display.data_window)
+plot(vixScore,     title='vixScore',     display=display.data_window)
+plot(junkScore,    title='junkScore',    display=display.data_window)
+plot(havenScore,   title='havenScore',   display=display.data_window)
+plot(pcScore,      title='pcScore',      display=display.data_window)
 
 plot(close, title='_anchor', display=display.none)
