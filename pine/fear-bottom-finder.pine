@@ -66,10 +66,10 @@ junkAvg   = ta.sma(junkRatio, 50)
 junkScore = na(junkRatio) or na(junkAvg) ? na : scale(junkRatio, junkAvg * 1.02, junkAvg * 0.92)
 
 // Safe-haven demand: SPX 20d return minus TLT 20d return. Negative = flight to bonds.
-spxClose  = useMarketData ? request.security('SP:SPX',      'D', close) : na
-tltClose  = useMarketData ? request.security('NASDAQ:TLT',  'D', close) : na
-spxRet    = na(spxClose) or na(spxClose[20]) ? na : (spxClose - spxClose[20]) / spxClose[20] * 100.0
-tltRet    = na(tltClose) or na(tltClose[20]) ? na : (tltClose - tltClose[20]) / tltClose[20] * 100.0
+// The return is computed INSIDE request.security so the [20] offset is 20 daily
+// bars regardless of the chart timeframe (correct on intraday charts too).
+spxRet    = useMarketData ? request.security('SP:SPX',     'D', (close - close[20]) / close[20] * 100.0) : na
+tltRet    = useMarketData ? request.security('NASDAQ:TLT', 'D', (close - close[20]) / close[20] * 100.0) : na
 havenDiff = na(spxRet) or na(tltRet) ? na : spxRet - tltRet
 havenScore = scale(havenDiff, 5.0, -10.0)           // inverted: +5% stocks lead -> 0, -10% -> 100
 
