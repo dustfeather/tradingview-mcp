@@ -92,6 +92,7 @@ pcScore  = scale(pccRatio, 0.95, 1.4)
 
 // ============ GREED FACTORS ============
 // Mirror of the fear factors: each measures complacency / euphoria / risk-on.
+gDdScore      = scale(ddPct, ddMax, 0.0)                             // price at/near the 52wk high
 gRsiScore     = scale(rsiVal, 50.0, rsiCeil)                         // RSI overbought
 gStretchScore = scale(-stretchPct, 0.0, stretchMax)                  // price extended ABOVE 200MA
 gWvfScore     = scale(wvfScore, 50.0, 0.0)                           // VIX Fix complacent (low percentile)
@@ -127,6 +128,8 @@ fearScore = topNAvg(fearArr, topN)
 
 var greedArr = array.new<float>()
 array.clear(greedArr)
+if not na(gDdScore)
+    array.push(greedArr, gDdScore)
 if not na(gRsiScore)
     array.push(greedArr, gRsiScore)
 if not na(gStretchScore)
@@ -230,3 +233,5 @@ if barstate.islast
         table.cell(t, 1, 15, f_cellStr(gHavenScore),   text_color=color.white, bgcolor=cellSub)
         table.cell(t, 0, 16, 'G: Put/Call', text_color=color.white, bgcolor=cellSub)
         table.cell(t, 1, 16, f_cellStr(gPcScore),      text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 17, 'G: NearHigh', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 17, f_cellStr(gDdScore),      text_color=color.white, bgcolor=cellSub)
