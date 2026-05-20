@@ -100,7 +100,7 @@ bgcolor(bgCol, title='Fear Tier Background')
 // ============ BUY ZONE ============
 extreme = not na(fearScore) and fearScore >= extremeT
 capVol  = volume > ta.sma(volume, 20) * volMult
-wvfRoll = wvf < wvf[1] and wvf[1] >= wvf[2] and ta.percentrank(wvf, 252)[1] > 80
+wvfRoll = wvf < wvf[1] and wvf[1] >= wvf[2] and wvfScore[1] > 80
 buyZone = extreme and (capVol or wvfRoll)
 
 // One primary buy per calendar month; later qualifying bars are secondary.
