@@ -128,8 +128,10 @@ plot(fearScore, title='Fear Score', display=display.data_window)
 
 // ============ DISPLAY TABLE ============
 tierName = tier == 3 ? 'EXTREME FEAR' : tier == 2 ? 'FEAR' : tier == 1 ? 'CAUTION' : 'NEUTRAL'
-// Color the table by fear score: green (calm) -> yellow -> orange -> red (extreme fear).
-tierCol  = tier == 3 ? color.red : tier == 2 ? color.orange : tier == 1 ? color.yellow : color.green
+// Color the table by BUY OPPORTUNITY (not by fear): gray when there is nothing to
+// do (low fear), turning progressively greener as fear deepens, solid green at
+// EXTREME fear = the buy zone. Green always means "buy" — matching the BUY marker.
+tierCol  = tier == 3 ? color.green : tier == 2 ? color.new(color.green, 35) : tier == 1 ? color.new(color.green, 65) : color.gray
 tierColFaint = color.new(tierCol, 70)
 
 // Sub-scores are 0-100 readings, shown as percentages.
