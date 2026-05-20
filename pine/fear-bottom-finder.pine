@@ -17,10 +17,10 @@ usePutCall    = input.bool(true,  'Use Put/Call ratio (USI:PCC)',    group='Mark
 topN = input.int(4, 'Factors averaged (strongest N)', minval=1, maxval=8, group='Composite', tooltip='Each side (fear, greed) scores as the average of its N strongest factors. A plain average of all factors would be diluted by the ones sitting near 0.')
 
 // --- Tiers (Fear & Greed spectrum: 0 = extreme greed ... 100 = extreme fear) ---
-extremeFearT  = input.int(80, 'Extreme Fear threshold',  minval=55, maxval=99, group='Tiers')
-fearT         = input.int(60, 'Fear threshold',          minval=51, maxval=98, group='Tiers')
-greedT        = input.int(40, 'Greed threshold',         minval=2,  maxval=49, group='Tiers')
-extremeGreedT = input.int(20, 'Extreme Greed threshold', minval=1,  maxval=45, group='Tiers')
+extremeFearT  = input.int(75, 'Extreme Fear threshold',  minval=55, maxval=99, group='Tiers')
+fearT         = input.int(55, 'Fear threshold',          minval=51, maxval=98, group='Tiers')
+greedT        = input.int(45, 'Greed threshold',         minval=2,  maxval=49, group='Tiers')
+extremeGreedT = input.int(25, 'Extreme Greed threshold', minval=1,  maxval=45, group='Tiers')
 
 // --- Signals ---
 buyThresh  = input.int(80, 'Buy zone: min F&G index',  minval=10, maxval=99, group='Signals', tooltip='F&G index at/above this = buy zone. 80 = EXTREME FEAR, 60 = FEAR and above.')
