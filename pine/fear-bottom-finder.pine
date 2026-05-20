@@ -91,6 +91,12 @@ totWV = fWV(ddScore, wDD) + fWV(rsiScore, wRSI) + fWV(wvfScore, wWVF) + fWV(stre
 
 fearScore = totW > 0.0 ? totWV / totW : na
 
+// ============ TIERS ============
+tier = na(fearScore) ? 0 : fearScore >= extremeT ? 3 : fearScore >= fearT ? 2 : fearScore >= cautionT ? 1 : 0
+
+bgCol = tier == 3 ? color.new(color.red, 80) : tier == 2 ? color.new(color.orange, 85) : tier == 1 ? color.new(color.yellow, 88) : na
+bgcolor(bgCol, title='Fear Tier Background')
+
 plot(ddScore,      title='ddScore',      display=display.data_window)
 plot(rsiScore,     title='rsiScore',     display=display.data_window)
 plot(wvfScore,     title='wvfScore',     display=display.data_window)
