@@ -79,6 +79,18 @@ pccAvg   = usePutCall ? request.security('USI:PCC', 'D', ta.sma(close, 20)) : na
 pccRatio = na(pccClose) or na(pccAvg) ? na : pccClose / pccAvg
 pcScore  = scale(pccRatio, 0.95, 1.4)
 
+// ============ COMPOSITE ============
+// Weighted average over factors that are not na. A na factor contributes
+// nothing to either the weight sum or the weighted-value sum.
+fW(float sc, float w)  => na(sc) ? 0.0 : w
+fWV(float sc, float w) => na(sc) ? 0.0 : sc * w
+
+totW = fW(ddScore, wDD) + fW(rsiScore, wRSI) + fW(wvfScore, wWVF) + fW(stretchScore, wStretch) + fW(vixScore, wVIX) + fW(junkScore, wJunk) + fW(havenScore, wHaven) + fW(pcScore, wPC)
+
+totWV = fWV(ddScore, wDD) + fWV(rsiScore, wRSI) + fWV(wvfScore, wWVF) + fWV(stretchScore, wStretch) + fWV(vixScore, wVIX) + fWV(junkScore, wJunk) + fWV(havenScore, wHaven) + fWV(pcScore, wPC)
+
+fearScore = totW > 0.0 ? totWV / totW : na
+
 plot(ddScore,      title='ddScore',      display=display.data_window)
 plot(rsiScore,     title='rsiScore',     display=display.data_window)
 plot(wvfScore,     title='wvfScore',     display=display.data_window)
@@ -87,5 +99,6 @@ plot(vixScore,     title='vixScore',     display=display.data_window)
 plot(junkScore,    title='junkScore',    display=display.data_window)
 plot(havenScore,   title='havenScore',   display=display.data_window)
 plot(pcScore,      title='pcScore',      display=display.data_window)
+plot(fearScore, title='Fear Score', display=display.data_window)
 
 plot(close, title='_anchor', display=display.none)
