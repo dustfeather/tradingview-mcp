@@ -51,6 +51,8 @@ Use `study_filter` parameter to target a specific indicator by name substring (e
 7. `pine_new` → create blank indicator/strategy/library
 8. `pine_open` → load a saved script by name
 
+**Rule:** after editing any local Pine file, immediately push it — `pine_set_source` then `pine_smart_compile` (does Pine Save) — or the chart runs stale code.
+
 ### "Practice trading with replay"
 1. `replay_start` with `date: "2025-03-01"` → enter replay mode
 2. `replay_step` → advance one bar
