@@ -1,0 +1,182 @@
+//@version=6
+strategy(
+     title='Fear & Greed DCA',
+     overlay=true,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=1,
+     currency=currency.USD,
+     pyramiding=100,
+     close_entries_rule='ANY',
+     margin_long=100,
+     margin_short=100,
+     process_orders_on_close=true,
+     initial_capital=100000
+)
+// CNN Fear & Greed replica. Index scale follows CNN: 0 = extreme fear, 100 = extreme greed.
+// Seven equally-weighted factors; any factor whose data is unavailable (na) is dropped.
+// Long-term DCA strategy: BUY 1% of equity once per calendar month while the index is at
+// or below the buy threshold; in EXTREME GREED, CLOSE every position past its expiry age.
+
+// ============ INPUTS ============
+normLen = input.int(252, 'Normalization lookback (bars)', minval=60, maxval=756, group='CNN Index', tooltip='Each factor is z-scored against its own behaviour over this window.')
+
+// --- CNN tier bands — drive both the trade triggers and the candle colouring ---
+bandExtFear  = input.int(25, 'Extreme Fear below',  minval=5,  maxval=44, group='CNN Tiers')
+bandFear     = input.int(45, 'Fear below',          minval=26, maxval=49, group='CNN Tiers')
+bandGreed    = input.int(55, 'Greed above',         minval=51, maxval=74, group='CNN Tiers')
+bandExtGreed = input.int(75, 'Extreme Greed above', minval=56, maxval=95, group='CNN Tiers')
+
+// --- Signals ---
+buyThreshold = input.int(45, 'BUY when index at/below', minval=1, maxval=99, group='Signals', tooltip='Index at/below this fires the monthly long entry. 45 = FEAR and below, 25 = EXTREME FEAR.')
+
+// --- Position management ---
+expiryYears = input.float(10.0, 'Position expiry (years)', minval=0.0, group='Position', tooltip='A position becomes eligible to close once it reaches this age. Expired positions are closed on the next EXTREME GREED bar.')
+
+// --- Backtest window ---
+startDate = input.time(timestamp('1970-01-01T00:00:00'), 'Trade only from', group='Backtest window', tooltip='No entries or exits fire before this date. CNN factors still warm up on earlier bars.')
+
+verbose = input.bool(false, 'Verbose breakdown table', group='Display')
+
+// ============ HELPER ============
+// z-score a series against its own normLen history, mapped to 0-100 (50 = average,
+// ~+2.5 standard deviations = 100). CNN's "distance from normal" idea.
+znorm(float x, int len) =>
+    float m = ta.sma(x, len)
+    float s = ta.stdev(x, len)
+    na(x) or na(m) or na(s) or s == 0.0 ? na : math.min(math.max(50.0 + (x - m) / s * 20.0, 0.0), 100.0)
+
+// ============ CNN FACTORS (each 0-100: 0 = fear, 100 = greed) ============
+// 1. Market Momentum — S&P 500 vs its 125-day average.
+spx       = request.security('SP:SPX', 'D', close, ignore_invalid_symbol=true)
+spxSma125 = ta.sma(spx, 125)
+momRaw    = na(spx) ? na : spx - spxSma125
+fMomentum = znorm(momRaw, normLen)
+
+// 2. Stock Price Strength — NYSE 52-week new highs vs new lows.
+nHigh     = request.security('INDEX:MAHN', 'D', close, ignore_invalid_symbol=true)
+nLow      = request.security('INDEX:MALN', 'D', close, ignore_invalid_symbol=true)
+strRaw    = na(nHigh) or na(nLow) or (nHigh + nLow) == 0.0 ? na : (nHigh - nLow) / (nHigh + nLow)
+fStrength = znorm(strRaw, normLen)
+
+// 3. Stock Price Breadth — McClellan-style net advancing volume (NYSE up vs down volume).
+upVol     = request.security('USI:UVOL', 'D', close, ignore_invalid_symbol=true)
+dnVol     = request.security('USI:DVOL', 'D', close, ignore_invalid_symbol=true)
+netVol    = na(upVol) or na(dnVol) or (upVol + dnVol) == 0.0 ? na : (upVol - dnVol) / (upVol + dnVol) * 1000.0
+mcEma19   = ta.ema(netVol, 19)
+mcEma39   = ta.ema(netVol, 39)
+mcOsc     = mcEma19 - mcEma39
+fBreadth  = znorm(mcOsc, normLen)
+
+// 4. Put/Call Options — 5-day average put/call ratio. Low ratio = greed, so invert.
+pcc       = request.security('USI:PCC', 'D', close, ignore_invalid_symbol=true)
+pcc5      = ta.sma(pcc, 5)
+pcZ       = znorm(pcc5, normLen)
+fPutCall  = na(pcZ) ? na : 100.0 - pcZ
+
+// 5. Market Volatility — VIX vs its 50-day average. Low VIX = greed, so invert.
+vix       = request.security('CBOE:VIX', 'D', close, ignore_invalid_symbol=true)
+vixSma50  = ta.sma(vix, 50)
+vixRel    = na(vix) ? na : vix - vixSma50
+vixZ      = znorm(vixRel, normLen)
+fVol      = na(vixZ) ? na : 100.0 - vixZ
+
+// 6. Safe Haven Demand — 20-day stock return minus 20-day bond return.
+tlt       = request.security('NASDAQ:TLT', 'D', close, ignore_invalid_symbol=true)
+spxRet    = na(spx) ? na : (spx - spx[20]) / spx[20] * 100.0
+tltRet    = na(tlt) ? na : (tlt - tlt[20]) / tlt[20] * 100.0
+havenRaw  = na(spxRet) or na(tltRet) ? na : spxRet - tltRet
+fHaven    = znorm(havenRaw, normLen)
+
+// 7. Junk Bond Demand — high-yield vs investment-grade bond demand (HYG / LQD).
+hyg       = request.security('AMEX:HYG', 'D', close, ignore_invalid_symbol=true)
+lqd       = request.security('AMEX:LQD', 'D', close, ignore_invalid_symbol=true)
+junkRaw   = na(hyg) or na(lqd) ? na : hyg / lqd
+fJunk     = znorm(junkRaw, normLen)
+
+// ============ COMPOSITE — equal-weight average of available factors ============
+var facArr = array.new<float>()
+array.clear(facArr)
+if not na(fMomentum)
+    array.push(facArr, fMomentum)
+if not na(fStrength)
+    array.push(facArr, fStrength)
+if not na(fBreadth)
+    array.push(facArr, fBreadth)
+if not na(fPutCall)
+    array.push(facArr, fPutCall)
+if not na(fVol)
+    array.push(facArr, fVol)
+if not na(fHaven)
+    array.push(facArr, fHaven)
+if not na(fJunk)
+    array.push(facArr, fJunk)
+factorsUsed = array.size(facArr)
+fgIndex = factorsUsed > 0 ? array.avg(facArr) : na
+
+// ============ TIERS (candle colour only) ============
+tier = na(fgIndex) ? na : fgIndex <= bandExtFear ? 2 : fgIndex <= bandFear ? 1 : fgIndex < bandGreed ? 0 : fgIndex < bandExtGreed ? -1 : -2
+barColor = na(tier) ? color.gray : tier == 2 ? color.red : tier == 1 ? color.orange : tier == 0 ? color.gray : tier == -1 ? color.rgb(100, 170, 255) : color.green
+barcolor(barColor, title='Fear/Greed Candle Color')
+
+// ============ TRADE LOGIC — long-term DCA with per-position expiry ============
+// BUY:  index at/below buyThreshold -> one 1%-of-equity long on the first qualifying
+//       bar of the calendar month. Each buy gets a unique date-based id ('L<year>-<month>')
+//       so it can be closed individually. Entries stack (pyramiding=100).
+// EXIT: on an EXTREME GREED bar, close an open position only when ALL hold: it has
+//       reached the expiry age (>= expiryYears) AND the current price is above its
+//       entry price (profitable). Younger, underwater, or non-greed positions stay open.
+expiryMs = expiryYears * 365.25 * 24.0 * 60.0 * 60.0 * 1000.0
+
+newMonth = ta.change(month(time)) != 0
+var bool boughtThisMonth = false
+if newMonth
+    boughtThisMonth := false
+if not na(fgIndex) and time >= startDate
+    if fgIndex <= buyThreshold and not boughtThisMonth
+        strategy.entry('L' + str.tostring(year) + '-' + str.tostring(month), strategy.long)
+        boughtThisMonth := true
+    else if fgIndex >= bandExtGreed
+        if strategy.opentrades > 0
+            for i = 0 to strategy.opentrades - 1
+                expired    = (time - strategy.opentrades.entry_time(i)) >= expiryMs
+                profitable = close > strategy.opentrades.entry_price(i)
+                if expired and profitable
+                    strategy.close(strategy.opentrades.entry_id(i))
+
+// ============ DISPLAY TABLE ============
+tierName = na(tier) ? 'n/a' : tier == 2 ? 'EXTREME FEAR' : tier == 1 ? 'FEAR' : tier == 0 ? 'NEUTRAL' : tier == -1 ? 'GREED' : 'EXTREME GREED'
+tierCol  = na(tier) ? color.gray : tier == 2 ? color.rgb(0, 175, 0) : tier == 1 ? color.rgb(40, 120, 40) : tier == 0 ? color.rgb(120, 120, 120) : tier == -1 ? color.rgb(150, 65, 65) : color.rgb(200, 25, 25)
+avgStr   = strategy.position_size > 0 ? str.tostring(strategy.position_avg_price, '#.##') : 'n/a'
+cellHdr  = color.rgb(95, 100, 110)
+cellSub  = color.rgb(75, 80, 90)
+f_cell(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc))
+
+// barstate.islast alone never fires here: a strategy with calc_on_every_tick=false
+// does not execute on the realtime bar, so islastconfirmedhistory is the bar that wins.
+var table t = table.new(position.bottom_right, 2, 12, border_width=1)
+if barstate.islast or barstate.islastconfirmedhistory
+    table.cell(t, 0, 0, 'CNN F&G Index', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 0, f_cell(fgIndex), text_color=color.white, bgcolor=tierCol)
+    table.cell(t, 0, 1, 'Tier', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 1, tierName, text_color=color.white, bgcolor=tierCol)
+    table.cell(t, 0, 2, 'Open buys', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 2, str.tostring(strategy.opentrades), text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 0, 3, 'Avg price', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 3, avgStr, text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 0, 4, 'Factors used', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 4, str.tostring(factorsUsed) + ' / 7', text_color=color.white, bgcolor=cellHdr)
+    if verbose
+        table.cell(t, 0, 5,  '1 Momentum',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 5,  f_cell(fMomentum), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 6,  '2 Strength',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 6,  f_cell(fStrength), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 7,  '3 Breadth',    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 7,  f_cell(fBreadth), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 8,  '4 Put/Call',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 8,  f_cell(fPutCall), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 9,  '5 Volatility', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 9,  f_cell(fVol), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 10, '6 Safe Haven', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 10, f_cell(fHaven), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 11, '7 Junk Bonds', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 11, f_cell(fJunk), text_color=color.white, bgcolor=cellSub)
