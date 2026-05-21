@@ -1,0 +1,154 @@
+//@version=6
+strategy(
+     title='Fear Bottom Finder Strategy',
+     overlay=true,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100,
+     process_orders_on_close=true,
+     initial_capital=1000
+)
+// CNN Fear & Greed replica. Index scale follows CNN: 0 = extreme fear, 100 = extreme greed.
+// Seven equally-weighted factors; any factor whose data is unavailable (na) is dropped.
+// Simple binary strategy: BUY when the index falls to/below the buy level, CLOSE when it
+// rises to/above the exit level. Position size = the standard Properties "Order size".
+
+// ============ INPUTS ============
+normLen = input.int(252, 'Normalization lookback (bars)', minval=60, maxval=756, group='CNN Index', tooltip='Each factor is z-scored against its own behaviour over this window.')
+
+// --- Trade triggers (index 0 = extreme fear ... 100 = extreme greed) ---
+buyBelow  = input.int(30, 'BUY when index at/below',  minval=1, maxval=99, group='Signals', tooltip='Index at/below this fires a long entry.')
+exitAbove = input.int(65, 'EXIT when index at/above', minval=1, maxval=99, group='Signals', tooltip='Index at/above this closes the position.')
+
+// --- CNN tier bands — used only for the candle colouring (visual reference) ---
+bandExtFear  = input.int(25, 'Extreme Fear below',  minval=5,  maxval=44, group='CNN Tiers')
+bandFear     = input.int(45, 'Fear below',          minval=26, maxval=49, group='CNN Tiers')
+bandGreed    = input.int(55, 'Greed above',         minval=51, maxval=74, group='CNN Tiers')
+bandExtGreed = input.int(75, 'Extreme Greed above', minval=56, maxval=95, group='CNN Tiers')
+
+verbose = input.bool(false, 'Verbose breakdown table', group='Display')
+
+// ============ HELPER ============
+// z-score a series against its own normLen history, mapped to 0-100 (50 = average,
+// ~+2.5 standard deviations = 100). CNN's "distance from normal" idea.
+znorm(float x, int len) =>
+    float m = ta.sma(x, len)
+    float s = ta.stdev(x, len)
+    na(x) or na(m) or na(s) or s == 0.0 ? na : math.min(math.max(50.0 + (x - m) / s * 20.0, 0.0), 100.0)
+
+// ============ CNN FACTORS (each 0-100: 0 = fear, 100 = greed) ============
+// 1. Market Momentum — S&P 500 vs its 125-day average.
+spx       = request.security('SP:SPX', 'D', close, ignore_invalid_symbol=true)
+spxSma125 = ta.sma(spx, 125)
+momRaw    = na(spx) ? na : spx - spxSma125
+fMomentum = znorm(momRaw, normLen)
+
+// 2. Stock Price Strength — NYSE 52-week new highs vs new lows.
+nHigh     = request.security('INDEX:MAHN', 'D', close, ignore_invalid_symbol=true)
+nLow      = request.security('INDEX:MALN', 'D', close, ignore_invalid_symbol=true)
+strRaw    = na(nHigh) or na(nLow) or (nHigh + nLow) == 0.0 ? na : (nHigh - nLow) / (nHigh + nLow)
+fStrength = znorm(strRaw, normLen)
+
+// 3. Stock Price Breadth — McClellan-style net advancing volume (NYSE up vs down volume).
+upVol     = request.security('USI:UVOL', 'D', close, ignore_invalid_symbol=true)
+dnVol     = request.security('USI:DVOL', 'D', close, ignore_invalid_symbol=true)
+netVol    = na(upVol) or na(dnVol) or (upVol + dnVol) == 0.0 ? na : (upVol - dnVol) / (upVol + dnVol) * 1000.0
+mcEma19   = ta.ema(netVol, 19)
+mcEma39   = ta.ema(netVol, 39)
+mcOsc     = mcEma19 - mcEma39
+fBreadth  = znorm(mcOsc, normLen)
+
+// 4. Put/Call Options — 5-day average put/call ratio. Low ratio = greed, so invert.
+pcc       = request.security('USI:PCC', 'D', close, ignore_invalid_symbol=true)
+pcc5      = ta.sma(pcc, 5)
+pcZ       = znorm(pcc5, normLen)
+fPutCall  = na(pcZ) ? na : 100.0 - pcZ
+
+// 5. Market Volatility — VIX vs its 50-day average. Low VIX = greed, so invert.
+vix       = request.security('CBOE:VIX', 'D', close, ignore_invalid_symbol=true)
+vixSma50  = ta.sma(vix, 50)
+vixRel    = na(vix) ? na : vix - vixSma50
+vixZ      = znorm(vixRel, normLen)
+fVol      = na(vixZ) ? na : 100.0 - vixZ
+
+// 6. Safe Haven Demand — 20-day stock return minus 20-day bond return.
+tlt       = request.security('NASDAQ:TLT', 'D', close, ignore_invalid_symbol=true)
+spxRet    = na(spx) ? na : (spx - spx[20]) / spx[20] * 100.0
+tltRet    = na(tlt) ? na : (tlt - tlt[20]) / tlt[20] * 100.0
+havenRaw  = na(spxRet) or na(tltRet) ? na : spxRet - tltRet
+fHaven    = znorm(havenRaw, normLen)
+
+// 7. Junk Bond Demand — high-yield vs investment-grade bond demand (HYG / LQD).
+hyg       = request.security('AMEX:HYG', 'D', close, ignore_invalid_symbol=true)
+lqd       = request.security('AMEX:LQD', 'D', close, ignore_invalid_symbol=true)
+junkRaw   = na(hyg) or na(lqd) ? na : hyg / lqd
+fJunk     = znorm(junkRaw, normLen)
+
+// ============ COMPOSITE — equal-weight average of available factors ============
+var facArr = array.new<float>()
+array.clear(facArr)
+if not na(fMomentum)
+    array.push(facArr, fMomentum)
+if not na(fStrength)
+    array.push(facArr, fStrength)
+if not na(fBreadth)
+    array.push(facArr, fBreadth)
+if not na(fPutCall)
+    array.push(facArr, fPutCall)
+if not na(fVol)
+    array.push(facArr, fVol)
+if not na(fHaven)
+    array.push(facArr, fHaven)
+if not na(fJunk)
+    array.push(facArr, fJunk)
+factorsUsed = array.size(facArr)
+fgIndex = factorsUsed > 0 ? array.avg(facArr) : na
+
+// ============ TIERS (candle colour only) ============
+tier = na(fgIndex) ? na : fgIndex <= bandExtFear ? 2 : fgIndex <= bandFear ? 1 : fgIndex < bandGreed ? 0 : fgIndex < bandExtGreed ? -1 : -2
+barColor = na(tier) ? color.gray : tier == 2 ? color.red : tier == 1 ? color.orange : tier == 0 ? color.gray : tier == -1 ? color.rgb(100, 170, 255) : color.green
+barcolor(barColor, title='Fear/Greed Candle Color')
+
+// ============ TRADE LOGIC — two explicit index thresholds ============
+// Index at/below buyBelow  -> long entry.
+// Index at/above exitAbove -> close.
+// strategy.entry only opens once (it ignores repeat calls while in a position); strategy.close
+// is a no-op when flat. Order size is whatever the Properties tab "Order size" is set to.
+if not na(fgIndex)
+    if fgIndex <= buyBelow
+        strategy.entry('Long', strategy.long)
+    else if fgIndex >= exitAbove
+        strategy.close('Long')
+
+// ============ DISPLAY TABLE ============
+tierName = na(tier) ? 'n/a' : tier == 2 ? 'EXTREME FEAR' : tier == 1 ? 'FEAR' : tier == 0 ? 'NEUTRAL' : tier == -1 ? 'GREED' : 'EXTREME GREED'
+tierCol  = na(tier) ? color.gray : tier == 2 ? color.rgb(0, 175, 0) : tier == 1 ? color.rgb(40, 120, 40) : tier == 0 ? color.rgb(120, 120, 120) : tier == -1 ? color.rgb(150, 65, 65) : color.rgb(200, 25, 25)
+posState = strategy.position_size > 0 ? 'LONG' : 'flat'
+cellHdr  = color.rgb(95, 100, 110)
+cellSub  = color.rgb(75, 80, 90)
+f_cell(float sc) => na(sc) ? 'n/a' : str.tostring(math.round(sc))
+
+var table t = table.new(position.middle_left, 2, 12, border_width=1)
+if barstate.islast
+    table.cell(t, 0, 0, 'CNN F&G Index', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 0, f_cell(fgIndex), text_color=color.white, bgcolor=tierCol)
+    table.cell(t, 0, 1, 'Tier', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 1, tierName, text_color=color.white, bgcolor=tierCol)
+    table.cell(t, 0, 2, 'Position', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 2, posState, text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 0, 3, 'Factors used', text_color=color.white, bgcolor=cellHdr)
+    table.cell(t, 1, 3, str.tostring(factorsUsed) + ' / 7', text_color=color.white, bgcolor=cellHdr)
+    if verbose
+        table.cell(t, 0, 4,  '1 Momentum',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 4,  f_cell(fMomentum), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 5,  '2 Strength',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 5,  f_cell(fStrength), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 6,  '3 Breadth',    text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 6,  f_cell(fBreadth), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 7,  '4 Put/Call',   text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 7,  f_cell(fPutCall), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 8,  '5 Volatility', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 8,  f_cell(fVol), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 9,  '6 Safe Haven', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 9,  f_cell(fHaven), text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 0, 10, '7 Junk Bonds', text_color=color.white, bgcolor=cellSub)
+        table.cell(t, 1, 10, f_cell(fJunk), text_color=color.white, bgcolor=cellSub)
