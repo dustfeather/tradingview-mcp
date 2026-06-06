@@ -1,0 +1,29 @@
+name: PR checks
+
+# Claude reviews every PR and submits a formal verdict. For Dependabot PRs a
+# safe patch/minor bump is approved automatically; claude[bot] is a GitHub App
+# so its approval cascades into the dependabot-auto-merge workflow (the default
+# GITHUB_TOKEN would not). Anything risky gets request-changes for a human.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    uses: dustfeather/shared-workflows/.github/workflows/claude-code-review.yml@v4
+    with:
+      runner: arc-df-tradingview-mcp
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
