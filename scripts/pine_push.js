@@ -1,9 +1,15 @@
 #!/usr/bin/env node
-// Push scripts/current.pine → TradingView editor, then compile
+// Push <path> → TradingView editor, then compile
+// Usage: node pine_push.js [srcPath]   (default: scripts/current.pine)
+//   e.g. node pine_push.js strategies/fear-greed-dca/strategy.pine
 import CDP from 'chrome-remote-interface';
 import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
-const srcPath = new URL('../scripts/current.pine', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+const argPath = process.argv[2];
+const srcPath = argPath
+  ? resolve(process.cwd(), argPath)
+  : new URL('../scripts/current.pine', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
 const src = readFileSync(srcPath, 'utf-8');
 
 const targets = await (await fetch('http://localhost:9222/json/list')).json();

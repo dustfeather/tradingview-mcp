@@ -2,6 +2,22 @@
 
 68 tools for reading and controlling a live TradingView Desktop chart via CDP (port 9222).
 
+## Active Strategy — Context Isolation (READ FIRST)
+
+Trading strategies live one-per-folder under `strategies/<name>/`, each with fixed files: `strategy.pine`, `plan.md`, `spec.md`, `notes.md`. Each strategy is **independent** — never mix them.
+
+**Exactly one strategy is "active" per session.** The user names it at the start (e.g. "we're working on fear-greed-dca"). The active strategy is the folder name. There is NO marker file, symlink, or env var — it is whatever the user just said.
+
+Hard rules — follow exactly:
+
+1. **No active strategy named → ASK.** If the user has not named the active strategy and the task touches any strategy file, ask which one before reading or editing anything under `strategies/`. Do not guess or default to one.
+2. **Read/edit ONLY `strategies/<active>/`.** Never open, `Read`, `cat`, `grep`, `git grep`, or glob files in any other `strategies/*` folder. Sibling strategies do not exist for this session.
+3. **Scope every search.** When running `grep`/`git grep`/`glob`, restrict paths so they cannot match other strategies — search `strategies/<active>/` and the generic engine (`src/`, `scripts/`, `tests/`), never bare `strategies/`. Do not run repo-wide searches that sweep sibling strategies into context.
+4. **Building a new strategy from scratch → start empty.** Create `strategies/<new-name>/` and work only there. Do NOT read other strategies "for reference", patterns, or inspiration unless the user explicitly tells you to look at a specific named one. A new strategy must not be contaminated by another's logic.
+5. **Pushing/pulling Pine.** `pine_push.js`/`pine_pull.js` take a path arg — always pass `strategies/<active>/strategy.pine`. Never push/pull a sibling strategy's file.
+
+The point: when working strategy A, strategy B's code, plan, and ideas must never enter context. Treat any sibling `strategies/*` folder as off-limits.
+
 ## Decision Tree — Which Tool When
 
 ### "What's on my chart right now?"
