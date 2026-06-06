@@ -1,0 +1,21 @@
+name: Dependabot auto-merge
+
+# `auto` mode pairs with the review trigger: when the claude-code-review job
+# (pr-checks.yml) approves a Dependabot PR, the reusable calls
+# `gh pr merge --auto`. Repo is public so GitHub auto-merge is available;
+# merge-method defaults to squash (enabled on this repo).
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: dustfeather/shared-workflows/.github/workflows/dependabot-auto-merge.yml@v4
+    with:
+      runner: arc-df-tradingview-mcp
