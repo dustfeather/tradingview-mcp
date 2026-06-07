@@ -1,0 +1,18 @@
+//@version=5
+// strategy.pine — volatility-adaptive-atr-trend (#3)
+// PLACEHOLDER — Phase-1 Pine is blocked on the signal fork (plan.md: A Keltner breakout
+// vs B ATR-channel + MA-cross). Do not push/compile this stub to the chart; it carries no
+// signal yet. Filled in once the formulation is locked.
+//
+// Locked harness (spec.md): BYBIT:BTCUSDT.P, 4H primary; process_orders_on_close=true;
+// 1x notional 100% equity; pyramiding=0; ATR trail (s anchor 3.0) primary exit +
+// 2.5x prior-day daily-ATR catastrophe backstop; closed-bar look-ahead discipline.
+strategy("VolAdaptive ATR Trend #3 [SCAFFOLD]", overlay=true, pyramiding=0,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     process_orders_on_close=true, calc_on_every_tick=false)
+
+// TODO(Phase-1): implement chosen formulation (A or B) per plan.md.
+// TODO(Phase-1): symmetric long/short, legs tagged separately for per-leg P&L folding.
+// TODO(Phase-1): ATR trailing stop + daily-ATR catastrophe backstop (request.security,
+//                lookahead_off, [1]).
+// TODO(Gate A-ablation): fixed-width envelope variant (k * fixed-% instead of k * ATR).
