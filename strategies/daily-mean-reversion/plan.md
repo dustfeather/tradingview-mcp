@@ -32,5 +32,6 @@ reversion edge, and its turnover profile is the least aligned of the four with t
 fee-amortization thesis.
 
 ## Status
-Scaffolded — locked design, **signal fork open** (RSI(2) vs Bollinger). No backtest. Anchors
-pre-registered in `spec.md`.
+**SHELVED (2026-06-07)** — Gate A FAIL, decisive (no edge). Combined PF 0.95, both legs negative
+expectancy, fails IS and OOS. Turnover/friction ate it as predicted (worst fee profile of the
+four). See `notes.md`.

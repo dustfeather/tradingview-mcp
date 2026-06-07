@@ -33,5 +33,7 @@ cited source proves a single-asset daily trend filter is net-positive OOS — an
 direct precedents against it.
 
 ## Status
-Scaffolded — locked design, **signal fork open** (regime gate = efficiency-ratio vs ADX). No
-backtest. Anchors pre-registered in `spec.md`.
+**SHELVED (2026-06-07)** — Gate A + ablation FAIL, decisive. Combined PF 1.22 < 1.3; regime
+gate **loses to always-on trend** (+122% vs +328%, value-destroying); short leg dead; OOS PF
+0.89. The #2/#3 grave, confirmed a third time — single-asset regime filters don't generalize.
+See `notes.md`.

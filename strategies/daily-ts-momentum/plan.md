@@ -34,5 +34,6 @@ The cost-resilient momentum evidence is cross-sectional (basket); no cited sourc
 fee-positive net edge for *single-asset* BTC TS-momentum at this horizon.
 
 ## Status
-Scaffolded — locked design, **signal fork open** (sign vs z-score). No backtest. Anchors
-pre-registered in `spec.md`.
+**SHELVED (2026-06-07)** — Gate A + ablation FAIL, decisive (bull-beta). FULL combined PF 1.76
+is entirely the long leg (+395%, riding BTC appreciation); short leg dead (PF 0.80); loses to
+buy-and-hold (+351% vs +738%); collapses OOS (PF 0.65). The exact lesson-#2 trap. See `notes.md`.

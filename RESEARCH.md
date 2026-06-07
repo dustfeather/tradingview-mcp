@@ -146,6 +146,44 @@ No fee-positive BTC-perp momentum edge was found at intraday/4H resolution. This
 the survey cited. It does not bound swing/daily horizons, other instruments, or
 non-momentum families, none of which were tested.
 
+## Strategy Pipeline — Swing/Daily Axis Outcomes (2026-06-07)
+
+The swing/daily survey (`.claude/research/swing-daily-survey.md`) produced a 4-candidate
+shortlist on the thesis that the fixed 0.17% RT fee, binding at 4H, would relax over multi-day
+holds. A reusable external-fold harness was built (`scripts/fold_engine.js` + per-strategy
+`signal.js` + `scripts/run_fold.js`) — Pine retired for these (backtest-only; Pine cannot read
+Bybit funding). All four ran on `BYBIT:BTCUSDT.P`, daily, 2020-03→2026-06 (2266 bars, 6794
+funding stamps), IS 2020-03→2023-12 / OOS 2024→now. **All four shelved.**
+
+| # | Strategy | Premise | Killed at | Cause |
+|---|----------|---------|-----------|-------|
+| 1 | funding-carry-tilt | directional short-carry (harvest positive funding) | Gate A + ablation | SHORT leg PF 0.53 / net −376%; loses to always-long; single-leg can't survive unhedged price risk (funding-positive ⇒ rising price). FAIL IS+OOS |
+| 2 | daily-ts-momentum | sign of trailing 28d return, weekly hold | Gate A + ablation + OOS | bull-beta: FULL PF 1.76 is all long leg; short leg dead (PF 0.80); loses to buy-and-hold (+351% vs +738%); collapses OOS (PF 0.65) |
+| 3 | daily-trend-regime | EMA trend gated by efficiency-ratio regime | Gate A + ablation + OOS | regime gate **loses to always-on trend** (+122% vs +328%, value-destroying); short leg dead; OOS PF 0.89. The #2 grave, 3rd time |
+| 4 | daily-mean-reversion | RSI(2) overextension fade w/ SMA200 filter | Gate A | no edge: combined PF 0.95, both legs negative, FAIL IS+OOS; turnover/friction ate it (worst fee profile, as predicted) |
+
+**Cross-cutting (reinforces the momentum lessons):**
+- **The fee-amortization thesis did not save any candidate.** Multi-day holds relaxed the fee
+  bar but exposed every candidate to the next binding constraint — directional/beta risk, OOS
+  non-generalization, or (for reversion) turnover that re-imported the fee problem anyway.
+- **Per-leg reporting earned its keep twice more.** #1 and #2 both showed positive *combined*
+  metrics that were entirely one leg (short-beta down / long-beta up). Without per-leg + the
+  ablation-vs-passive gate, #2 (PF 1.76) would have looked like a keep.
+- **Regime filters still don't generalize on a single asset** (#3 = #2 = a third confirmation):
+  gated underperformed ungated and died OOS.
+- **The single-leg carry is the honest disappointment:** funding IS a real premium, but harvesting
+  it directionally on one perp re-injects the price risk the delta-neutral (2-leg) trade hedges.
+  Revival requires a 2nd instrument — out of v1 scope.
+
+### What is NOT proven (swing/daily)
+No fee-positive, tradable edge was found for any of the four families on a single BTC perp at the
+swing/daily horizon — upholding the survey's own honesty caveat for each. This does **not** bound:
+delta-neutral/2-leg carry, cross-sectional baskets (multi-coin), other instruments, or
+depth/liquidation (v2) families — none tested. The momentum AND swing/daily shortlists are both
+now exhausted; resuming requires a genuinely new axis (multi-instrument, delta-neutral carry, or
+v2 data), not another single-perp directional candidate. **Harness is the asset; alpha is
+disposable** — seven full hypothesis tests, seven honest kills, cheaply.
+
 ## Related Work
 
 - **Model Context Protocol** — Anthropic (2024). The protocol this project implements for LLM-tool communication.
