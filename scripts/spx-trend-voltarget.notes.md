@@ -48,6 +48,23 @@ beat or match buy-hold with Sharpe 0.10-0.12 on SPCFD.
 - Sharpe-beat is period-dependent (full history yes, modern bull tie).
 - It works by managing EXPOSURE (cash below trend, de-risk on vol spikes), not predicting returns.
 
+## Broker fees — fitted for Alpaca (the deciding factor for a leveraged strat)
+
+Per-trade commission is trivial here; the real cost is LEVERAGE FINANCING. Measured exposure
+(SPY 1993-2026, 1.5x): avg gross 0.93x, avg borrowed 22%, time-in-market 75%.
+
+- **Alpaca:** $0 stock commission; margin interest ~6.25%/yr on the BORROWED slice only.
+  Modelled as a net-of-financing shadow equity curve in the script (Pine can't debit interest).
+  SPY 1993-2026 NET: 1.0x = 7.62% CAGR / 19% DD (no margin); **1.5x = 8.35% / 24%**;
+  2.0x = 8.40% / 25%. **Net CAGR plateaus ~8.4% → 1.5x is the sweet spot; >1.5x adds DD for
+  ~no net return.** Net of margin it does NOT match buy-hold CAGR (10.85%) — trades ~2.5pp CAGR
+  for ~half the drawdown.
+- **eToro:** UNVIABLE leveraged. Leverage = CFD → overnight fee on the FULL notional
+  (~10%/yr) erases the ~9-10% gross return. Only works at 1x real stock (no overnight fee).
+
+Rates as of 2026-06: Alpaca margin 6.25% (5% Elite); eToro stock commission ~$1-2/trade + CFD
+overnight ~benchmark+6.4%. The strategy file is fitted for Alpaca (commission 0, financing 6.25%).
+
 ## Caveats / TODO before any real use
 - In-sample over full history; no walk-forward train/test split yet.
 - SPCFD early data understates the 1929 tail (buy-hold maxDD shows only ~42% there).
