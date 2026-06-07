@@ -34,6 +34,7 @@ The cost-resilient momentum evidence is cross-sectional (basket); no cited sourc
 fee-positive net edge for *single-asset* BTC TS-momentum at this horizon.
 
 ## Status
-**SHELVED (2026-06-07)** — Gate A + ablation FAIL, decisive (bull-beta). FULL combined PF 1.76
-is entirely the long leg (+395%, riding BTC appreciation); short leg dead (PF 0.80); loses to
-buy-and-hold (+351% vs +738%); collapses OOS (PF 0.65). The exact lesson-#2 trap. See `notes.md`.
+**SHELVED (2026-06-07)** — dies OOS. Corrected lens: nearly market-neutral (beta 0.15), IS alpha
++49.5%/yr (Sharpe 0.95) but **OOS alpha −2.9%/yr (Sharpe −0.09)** — in-sample fitting that didn't
+generalize (lesson #4, OOS graveyard). (Original "bull-beta per-leg" reasoning was beta-
+contaminated by the trade-based gate — see `notes.md` correction.)

@@ -20,6 +20,11 @@ Scaffolded 2026-06-07. Locked design, signal fork open. No runs yet.
   - **Ablation: LOSES to buy-and-hold** (+351% vs +738%). The momentum timing destroys return
     vs simply being long.
   - **OOS: collapses** — combined PF 0.65, both legs fail (long exp −1.57%, short −2.45%).
-  - **Cause:** the entire combined edge is the long leg riding 2020–23 BTC appreciation —
-    levered beta, not edge. Short leg can't stand alone; timing loses to buy-and-hold; no OOS
-    generalization. Survey honesty caveat upheld (no single-asset BTC TS-mom net edge).
+  - **Cause (as originally stated):** combined edge = long leg riding BTC appreciation; short leg
+    can't stand alone; loses to buy-and-hold; no OOS generalization.
+- **2026-06-07 (CORRECTION) — kill stands, but the per-leg/buy-and-hold reasoning was beta-
+  contaminated.** Market-neutral lens (`alphaReport`): the strategy is nearly market-neutral
+  (beta 0.15 IS), NOT a bull-beta long. The real cause is **OOS alpha death**: IS alpha
+  +49.5%/yr (Sharpe 0.95) → **OOS alpha −2.9%/yr (Sharpe −0.09, beta −0.06)**. The IS edge was
+  in-sample fitting/regime luck that did not generalize. Legitimate lesson-#4 (OOS graveyard)
+  kill — the correct death, not "short leg dead in absolute terms."

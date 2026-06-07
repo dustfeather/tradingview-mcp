@@ -22,3 +22,12 @@ Scaffolded 2026-06-07. Locked design, signal fork open. No runs yet.
   - **Cause:** no fee-positive edge. Turnover/friction ate it exactly as the survey predicted —
     the worst fee profile of the four; reversion re-imported the per-trade fee problem the swing
     thesis exists to escape. Survey caveat upheld (reversal documented only gross).
+- **2026-06-07 (CORRECTION) — REOPENED, MARGINAL.** The shelve above was a FALSE NEGATIVE: the
+  trade-based per-leg gate measured directional beta on a 4x-trending asset, not alpha. On the
+  market-neutral lens (`alphaReport`: regress daily net return on BTC daily return):
+  - **IS:** alpha +4.7%/yr, Sharpe 0.32, beta 0.05.
+  - **OOS:** alpha **+5.9%/yr**, Sharpe **0.43**, beta **0.12** — positive and consistent IS→OOS.
+  - **Only survivor of the four.** But OOS Sharpe 0.43 < 0.5 keep bar ⇒ MARGINAL, not a keep.
+    Near-zero beta (genuinely market-neutral), but thin and low time-in-market (~16%).
+  - **Next:** try to lift Sharpe above 0.5 without fitting — e.g. Bollinger fork, vol-scaled
+    sizing, or relax the SMA200 filter. Improvement must hold OOS, beta stays <0.3.

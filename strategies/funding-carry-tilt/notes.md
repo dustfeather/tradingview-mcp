@@ -28,3 +28,9 @@ Scaffolded 2026-06-07. Locked design, signal fork open. No runs yet.
     upheld (BIS high Sharpe is delta-neutral, not single-leg).
   - **Next axis (out of v1 scope):** delta-neutral long-spot + short-perp needs a 2nd instrument
     — defer to a v2 that admits it.
+- **2026-06-07 (CORRECTION) — kill stands, now quantified on the market-neutral lens.** The
+  funding signal DOES carry positive alpha (regression intercept: IS +35.5%/yr, OOS +8.9%/yr),
+  but the position runs **beta −0.68** (net short a 4x-rising asset), so risk-adjusted it loses:
+  **OOS Sharpe −0.23, compounds to 0.66x.** This is the delta-neutral point made precise — the
+  alpha is real but unharvestable without hedging the −0.68 beta (the 2nd leg). Shelved; revival
+  = delta-neutral 2-leg, out of v1 scope.

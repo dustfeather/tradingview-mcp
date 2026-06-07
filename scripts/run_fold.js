@@ -11,7 +11,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { fetchKlines, atr, simulate, stats, gate, splitISOOS, runAblations } from './fold_engine.js';
+import { fetchKlines, atr, simulate, stats, gate, splitISOOS, runAblations, alphaReport, alphaGate } from './fold_engine.js';
 import { fetchFundingHistory } from './funding_fold.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,24 +55,31 @@ async function main() {
   const { is, oos } = splitISOOS(trades, meta.isOOSBoundary);
   const sIS = stats(is), sOOS = stats(oos);
   const abl = runAblations(mod, bars, funding, atrArr);
+  const rep = alphaReport(mod, bars, funding);
+  const ag = alphaGate(rep);
 
   if (asJson) {
-    console.log(JSON.stringify({ name, bars: bars.length, funding: funding.length, anchors, full: all, is: sIS, oos: sOOS, ablations: { beats: abl.beats, beatsAll: abl.beatsAll } }, null, 2));
+    console.log(JSON.stringify({ name, bars: bars.length, funding: funding.length, anchors, alpha: rep, alphaGate: ag, full: all, is: sIS, oos: sOOS, ablations: { beats: abl.beats, beatsAll: abl.beatsAll } }, null, 2));
     return;
   }
 
   console.log(`\n=== ${name} — external fold (BYBIT:${meta.symbol}.P, ${meta.interval}) ===`);
   console.log(`bars=${bars.length}  funding stamps=${funding.length}  trades=${trades.length}  friction=0.17% RT  funding=signed per-hold`);
   console.log(`IS/OOS boundary: ${new Date(meta.isOOSBoundary).toISOString().slice(0, 10)}`);
-  report('FULL SAMPLE', all, gate(all));
-  report('IN-SAMPLE (2020-03 → 2023-12)', sIS, gate(sIS));
-  report('OUT-OF-SAMPLE (2024 → now)', sOOS, gate(sOOS));
 
-  console.log('\nABLATION (main combined net must beat every baseline):');
-  for (const [bn, bs] of Object.entries(abl.baselines)) {
-    console.log(`  vs ${bn.padEnd(20)} baseline net=${pct(bs.combined.net).padStart(11)}  main=${pct(abl.main.combined.net).padStart(11)}  ⇒ ${abl.beats[bn] ? '✅ beats' : '❌ loses'}`);
-  }
-  console.log(`  ABLATION VERDICT: ${abl.beatsAll ? '✅ beats all baselines' : '❌ fails ablation — shelve regardless of PF (lesson #3)'}`);
+  // PRIMARY verdict: market-neutral alpha (beta-separated, OOS-confirmed, risk-adjusted).
+  const alphaLine = (lbl, s) => `  ${lbl.padEnd(4)} alphaAnn=${pct(s.alphaAnn).padStart(9)}  beta=${s.beta.toFixed(2).padStart(6)}  Sharpe=${s.sharpe.toFixed(2).padStart(6)}  compounded=${s.compounded.toFixed(2)}x  timeIn=${(s.timeIn * 100).toFixed(0)}%`;
+  console.log('\nMARKET-NEUTRAL ALPHA (primary verdict — separates alpha from beta to a trending asset):');
+  console.log(alphaLine('FULL', rep.full));
+  console.log(alphaLine('IS', rep.is));
+  console.log(alphaLine('OOS', rep.oos));
+  const verdict = ag.keep ? '✅ KEEP' : ag.marginal ? '🟡 MARGINAL (positive OOS alpha, Sharpe below keep bar)' : '❌ SHELVE';
+  console.log(`  GATE: OOS alpha>0 ${ag.alphaPass ? '✓' : '✗'} | OOS Sharpe≥${ag.minSharpe} ${ag.sharpePass ? '✓' : '✗'} | |beta|<${ag.maxBeta} ${ag.betaPass ? '✓' : '✗'} | IS→OOS consistent ${ag.consistent ? '✓' : '✗'}  ⇒  ${verdict}`);
+
+  // Secondary: trade-based per-leg view (absolute P&L — beta-contaminated on a trending asset).
+  console.log('\nTRADE-BASED PER-LEG (secondary — absolute P&L, beta-contaminated; do NOT use as the verdict):');
+  report('FULL', all, gate(all));
+  report('OOS', sOOS, gate(sOOS));
 }
 
 main().catch((e) => { console.error(e.stack || e.message); process.exit(1); });

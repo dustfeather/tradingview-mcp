@@ -32,6 +32,8 @@ reversion edge, and its turnover profile is the least aligned of the four with t
 fee-amortization thesis.
 
 ## Status
-**SHELVED (2026-06-07)** — Gate A FAIL, decisive (no edge). Combined PF 0.95, both legs negative
-expectancy, fails IS and OOS. Turnover/friction ate it as predicted (worst fee profile of the
-four). See `notes.md`.
+**REOPENED — MARGINAL (2026-06-07).** Initial shelve was a FALSE NEGATIVE: the absolute-return /
+per-leg gate measured beta, not alpha. On the corrected market-neutral lens this is the **only
+survivor** of the four — OOS alpha **+5.9%/yr**, OOS Sharpe **0.43**, beta **0.12**, consistent
+IS→OOS. It does NOT clear the keep bar (Sharpe ≥ 0.5), so it is reopened as a thin candidate for
+improvement, not a keep. Low capital efficiency (~16% time-in-market). See `notes.md`.

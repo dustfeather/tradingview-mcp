@@ -33,7 +33,7 @@ cited source proves a single-asset daily trend filter is net-positive OOS — an
 direct precedents against it.
 
 ## Status
-**SHELVED (2026-06-07)** — Gate A + ablation FAIL, decisive. Combined PF 1.22 < 1.3; regime
-gate **loses to always-on trend** (+122% vs +328%, value-destroying); short leg dead; OOS PF
-0.89. The #2/#3 grave, confirmed a third time — single-asset regime filters don't generalize.
-See `notes.md`.
+**SHELVED (2026-06-07)** — dies OOS. Corrected lens: near market-neutral (beta 0.08), IS alpha
++37.0%/yr (Sharpe 0.91) but **OOS alpha −3.0%/yr (Sharpe −0.11)** — regime edge didn't generalize
+(lesson #4, consistent with #2's grave). (Original "loses to always-on / per-leg" reasoning was
+beta-contaminated — see `notes.md` correction.)

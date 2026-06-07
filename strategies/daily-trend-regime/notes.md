@@ -20,6 +20,11 @@ Scaffolded 2026-06-07. Locked design, signal fork open. No runs yet.
   - **Ablation: LOSES to always-on trend** (+122% vs +328%). The regime gate is **strictly
     value-destroying** — it cuts good trend exposure. Exactly how #2 died, third confirmation.
   - **OOS: FAIL** — combined PF 0.89, both legs fail.
-  - **Cause:** the ER regime filter does not generalize and underperforms ungated trend; short
-    leg can't stand alone. No sweep rescues a mechanism that loses to its own degenerate baseline
-    (lesson #3). Survey caveat upheld; #2/#3 precedent against single-asset regime filters holds.
+  - **Cause (as originally stated):** ER regime filter underperforms ungated trend; short leg
+    can't stand alone.
+- **2026-06-07 (CORRECTION) — kill stands; reasoning corrected.** Market-neutral lens: nearly
+  market-neutral (beta 0.08), not a long-beta artifact. Real cause is **OOS alpha death**: IS
+  alpha +37.0%/yr (Sharpe 0.91) → **OOS alpha −3.0%/yr (Sharpe −0.11, beta −0.03)**. The regime
+  edge did not generalize OOS — legitimate lesson-#4 kill, consistent with #2's grave. (The
+  "loses to always-on trend on raw net" ablation was beta-contaminated; the OOS-alpha death is
+  the authoritative reason.)

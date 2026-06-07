@@ -153,36 +153,51 @@ shortlist on the thesis that the fixed 0.17% RT fee, binding at 4H, would relax 
 holds. A reusable external-fold harness was built (`scripts/fold_engine.js` + per-strategy
 `signal.js` + `scripts/run_fold.js`) — Pine retired for these (backtest-only; Pine cannot read
 Bybit funding). All four ran on `BYBIT:BTCUSDT.P`, daily, 2020-03→2026-06 (2266 bars, 6794
-funding stamps), IS 2020-03→2023-12 / OOS 2024→now. **All four shelved.**
+funding stamps), IS 2020-03→2023-12 / OOS 2024→now.
 
-| # | Strategy | Premise | Killed at | Cause |
-|---|----------|---------|-----------|-------|
-| 1 | funding-carry-tilt | directional short-carry (harvest positive funding) | Gate A + ablation | SHORT leg PF 0.53 / net −376%; loses to always-long; single-leg can't survive unhedged price risk (funding-positive ⇒ rising price). FAIL IS+OOS |
-| 2 | daily-ts-momentum | sign of trailing 28d return, weekly hold | Gate A + ablation + OOS | bull-beta: FULL PF 1.76 is all long leg; short leg dead (PF 0.80); loses to buy-and-hold (+351% vs +738%); collapses OOS (PF 0.65) |
-| 3 | daily-trend-regime | EMA trend gated by efficiency-ratio regime | Gate A + ablation + OOS | regime gate **loses to always-on trend** (+122% vs +328%, value-destroying); short leg dead; OOS PF 0.89. The #2 grave, 3rd time |
-| 4 | daily-mean-reversion | RSI(2) overextension fade w/ SMA200 filter | Gate A | no edge: combined PF 0.95, both legs negative, FAIL IS+OOS; turnover/friction ate it (worst fee profile, as predicted) |
+> **METHODOLOGY CORRECTION (2026-06-07, same day).** The first pass shelved all four on a
+> **trade-based, absolute per-leg gate** (per-trade expectancy, PF≥1.3, beat-buy-and-hold). On a
+> single asset that ~4x'd over the window, that gate **measures directional beta, not edge**:
+> "short leg must independently clear 0.20%/trade" is structurally unpassable, and "beat
+> buy-and-hold on raw net" penalizes a market-neutral book for not out-returning a *leveraged*
+> bull ride (buy-and-hold's own alpha is **negative** — it is beta + funding drag). This is why
+> all four "failed the same way" — the common factor was the **gate**, not the signals. The fix:
+> a **market-neutral alpha lens** (regress daily net return on BTC daily return; report OOS alpha,
+> Sharpe, beta) is now the PRIMARY verdict (`alphaReport`/`alphaGate` in `fold_engine.js`); the
+> trade-based per-leg stats are demoted to a secondary, beta-contaminated view. Keep bar: OOS
+> alpha>0, OOS Sharpe≥0.5, |beta|<0.3, IS→OOS sign-consistent.
 
-**Cross-cutting (reinforces the momentum lessons):**
-- **The fee-amortization thesis did not save any candidate.** Multi-day holds relaxed the fee
-  bar but exposed every candidate to the next binding constraint — directional/beta risk, OOS
-  non-generalization, or (for reversion) turnover that re-imported the fee problem anyway.
-- **Per-leg reporting earned its keep twice more.** #1 and #2 both showed positive *combined*
-  metrics that were entirely one leg (short-beta down / long-beta up). Without per-leg + the
-  ablation-vs-passive gate, #2 (PF 1.76) would have looked like a keep.
-- **Regime filters still don't generalize on a single asset** (#3 = #2 = a third confirmation):
-  gated underperformed ungated and died OOS.
-- **The single-leg carry is the honest disappointment:** funding IS a real premium, but harvesting
-  it directionally on one perp re-injects the price risk the delta-neutral (2-leg) trade hedges.
-  Revival requires a 2nd instrument — out of v1 scope.
+**Corrected verdicts (market-neutral lens, IS 2020-03→2023-12 / OOS 2024→now):**
+
+| # | Strategy | IS α / Sharpe / β | OOS α / Sharpe / β | Verdict | Real cause |
+|---|----------|-------------------|--------------------|---------|------------|
+| 1 | funding-carry-tilt | +35.5% / −0.21 / −0.69 | +8.9% / −0.23 / −0.67 | **SHELVE** | alpha is real but β −0.68 (net short a rising asset) ⇒ negative Sharpe, unharvestable without the delta-neutral 2nd leg |
+| 2 | daily-ts-momentum | +49.5% / 0.95 / 0.15 | **−2.9% / −0.09 / −0.06** | **SHELVE** | near market-neutral, but IS alpha **dies OOS** — in-sample fitting (lesson #4, OOS graveyard) |
+| 3 | daily-trend-regime | +37.0% / 0.91 / 0.08 | **−3.0% / −0.11 / −0.03** | **SHELVE** | same — regime edge does not generalize OOS (consistent with #2's grave) |
+| 4 | daily-mean-reversion | +4.7% / 0.32 / 0.05 | **+5.9% / 0.43 / 0.12** | 🟡 **MARGINAL — REOPENED** | only survivor: positive, OOS-stable, market-neutral alpha; but Sharpe 0.43 < 0.5 keep bar |
+
+**Cross-cutting lessons (this axis):**
+- **Gate the right quantity.** On a trending instrument, absolute per-leg P&L is dominated by
+  beta. Always separate alpha from beta (regression) before declaring kill/keep — else you reject
+  market-neutral alpha and "confirm" nulls that are just the asset's drift. This was a real
+  harness flaw, caught only because all four failed identically.
+- **The honest kills survive the correction — for better reasons.** #2/#3 die OOS (alpha flips
+  negative; IS Sharpe ~0.9 was fitting). #1 dies risk-adjusted (negative Sharpe from unhedged
+  beta — the delta-neutral point, now quantified: the funding alpha is real, ~+9%/yr OOS, just
+  unharvestable on one leg).
+- **The two axes did NOT fail the same way.** Intraday/4H momentum died on the *fee bar* (little
+  per-trade drift, beta small → that null is sound). Swing/daily's first "null" was a *gate
+  artifact*; corrected, 3 die OOS and 1 is a false-negative reopened.
+- **mean-reversion was a false negative** — the absolute-return gate hid a thin (Sharpe 0.43),
+  near-zero-beta, OOS-stable edge. Reopened for improvement (lift Sharpe ≥0.5 without fitting).
 
 ### What is NOT proven (swing/daily)
-No fee-positive, tradable edge was found for any of the four families on a single BTC perp at the
-swing/daily horizon — upholding the survey's own honesty caveat for each. This does **not** bound:
-delta-neutral/2-leg carry, cross-sectional baskets (multi-coin), other instruments, or
-depth/liquidation (v2) families — none tested. The momentum AND swing/daily shortlists are both
-now exhausted; resuming requires a genuinely new axis (multi-instrument, delta-neutral carry, or
-v2 data), not another single-perp directional candidate. **Harness is the asset; alpha is
-disposable** — seven full hypothesis tests, seven honest kills, cheaply.
+No candidate clears the keep bar (OOS Sharpe≥0.5). Three are genuine kills (2 die OOS, 1 needs a
+delta-neutral 2nd leg). **daily-mean-reversion is a marginal survivor** with positive OOS alpha
+but sub-threshold Sharpe — reopened, not shelved. This does **not** bound delta-neutral/2-leg
+carry, cross-sectional baskets, other instruments, or v2 depth/liquidation. **Harness is the
+asset, alpha is disposable** — and the harness itself was corrected mid-pipeline (alpha vs beta
+gate), the most valuable lesson of the run.
 
 ## Related Work
 

@@ -260,3 +260,92 @@ export function runAblations(mod, bars, funding, atrArr) {
   const beats = Object.fromEntries(Object.entries(baselines).map(([k, v]) => [k, main.combined.net > v.combined.net]));
   return { main, baselines, beats, beatsAll: Object.values(beats).every(Boolean) };
 }
+
+// ---------------------------------------------------------------------------
+// Market-neutral alpha lens (PRIMARY verdict).
+//
+// Why this exists: the trade-based stats/gate above measure absolute per-leg P&L, which on a
+// secularly-trending instrument is dominated by directional BETA, not edge. The per-leg-absolute
+// gate is structurally unpassable on a drifting asset and rejects market-neutral alpha. This
+// lens regresses the strategy's daily net return on the asset's daily return to separate ALPHA
+// (intercept) from BETA, and reports OOS-confirmed risk-adjusted performance. This is the
+// authoritative keep/kill verdict; the trade stats are a secondary view.
+//
+// Returns are computed bar-by-bar, no look-ahead: position decided at close[i-1] earns the
+// close[i-1]→close[i] return; friction 0.085%/side on |Δposition|; funding signed per-bar
+// (long pays positive funding).
+// ---------------------------------------------------------------------------
+
+const PER_SIDE_FRICTION = FRICTION_RT / 2;
+
+/** Per-bar funding sum: stamps in (bars[i-1].ts, bars[i].ts], aligned to bars (idx 0 = 0). */
+export function perBarFunding(bars, funding) {
+  const out = new Array(bars.length).fill(0);
+  let j = 0; // funding is ASC; walk once
+  for (let i = 1; i < bars.length; i++) {
+    const a = bars[i - 1].ts, b = bars[i].ts;
+    while (j < funding.length && funding[j].ts <= a) j++;
+    let k = j, s = 0;
+    while (k < funding.length && funding[k].ts <= b) { s += funding[k].rate; k++; }
+    out[i] = s;
+  }
+  return out;
+}
+
+/** Daily net-return series for a target-position path (market-neutral lens). */
+export function dailyReturns(bars, target, funding) {
+  const bf = perBarFunding(bars, funding);
+  const r = new Array(bars.length).fill(0);
+  const mret = new Array(bars.length).fill(0);
+  for (let i = 1; i < bars.length; i++) {
+    const pos = target[i - 1] || 0;
+    mret[i] = bars[i].close / bars[i - 1].close - 1;
+    const fric = PER_SIDE_FRICTION * Math.abs((target[i - 1] || 0) - (target[i - 2] || 0));
+    r[i] = pos * mret[i] - pos * bf[i] - fric;
+  }
+  return { r, mret };
+}
+
+/** OLS of strategy returns on market returns over [lo,hi). Annualized (365d). */
+export function alphaBeta(r, mret, lo, hi) {
+  const xs = [], ys = [];
+  for (let i = Math.max(1, lo); i < hi; i++) { xs.push(mret[i]); ys.push(r[i]); }
+  const n = xs.length;
+  if (n < 2) return { n, alpha: 0, alphaAnn: 0, beta: 0, sharpe: 0, compounded: 1, timeIn: 0 };
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, sd = 0, eq = 1, tin = 0;
+  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+  const beta = sxx ? sxy / sxx : 0, alpha = my - beta * mx;
+  for (const y of ys) { sd += (y - my) ** 2; eq *= (1 + y); if (y !== 0) tin++; }
+  sd = Math.sqrt(sd / n);
+  return { n, alpha, alphaAnn: alpha * 365, beta, sharpe: sd ? (my / sd) * Math.sqrt(365) : 0, compounded: eq, timeIn: tin / n };
+}
+
+/** Full / IS / OOS market-neutral report for a signal module. */
+export function alphaReport(mod, bars, funding) {
+  const { r, mret } = dailyReturns(bars, mod.target(bars, funding, mod.anchors), funding);
+  const idx = bars.findIndex((b) => b.ts >= mod.meta.isOOSBoundary);
+  return {
+    full: alphaBeta(r, mret, 1, bars.length),
+    is: alphaBeta(r, mret, 1, idx),
+    oos: alphaBeta(r, mret, idx, bars.length),
+  };
+}
+
+/**
+ * Keep/kill verdict on the OOS market-neutral metrics.
+ * Default bar: OOS alpha>0, OOS Sharpe≥0.5, |beta|<0.3, and IS→OOS alpha sign-consistent.
+ */
+export function alphaGate(rep, { minAlphaAnn = 0, minSharpe = 0.5, maxBeta = 0.3 } = {}) {
+  const o = rep.oos, i = rep.is;
+  const alphaPass = o.alphaAnn > minAlphaAnn;
+  const sharpePass = o.sharpe >= minSharpe;
+  const betaPass = Math.abs(o.beta) < maxBeta;
+  const consistent = Math.sign(i.alphaAnn) === Math.sign(o.alphaAnn) && i.alphaAnn > 0;
+  return {
+    alphaPass, sharpePass, betaPass, consistent,
+    keep: alphaPass && sharpePass && betaPass && consistent,
+    marginal: alphaPass && betaPass && consistent && !sharpePass, // positive OOS alpha but thin Sharpe
+    minSharpe, maxBeta,
+  };
+}
