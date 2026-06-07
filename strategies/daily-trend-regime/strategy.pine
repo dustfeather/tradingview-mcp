@@ -1,0 +1,46 @@
+//@version=6
+// daily-trend-regime — LOCKED DESIGN, SIGNAL FORK OPEN (scaffold 2026-06-07)
+// Survey rank #3. See plan.md / spec.md. Instrument BYBIT:BTCUSDT.P, daily.
+//
+// Edge = daily EMA trend, gated to fire ONLY in directional regimes. The regime gate must
+// beat always-on trend in ablation (the #2/#3 grave). Authoritative net = external fold.
+strategy("daily-trend-regime", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, process_orders_on_close=true, calc_on_every_tick=false)
+
+// === Pre-registered anchors (spec.md) ===
+emaFast = input.int(20,  "EMA fast")
+emaSlow = input.int(50,  "EMA slow")
+useADX  = input.bool(false, "Regime gate: ADX (else Efficiency Ratio)")
+erLen   = input.int(10,  "Efficiency Ratio length")
+erThr   = input.float(0.30, "ER gate", step=0.05)
+adxLen  = input.int(14,  "ADX length")
+adxThr  = input.float(25, "ADX gate", step=1)
+atrLen  = input.int(14,  "ATR length")
+atrMult = input.float(3.0,"ATR stop mult", step=0.5)
+
+// === Trend signal ===
+ef = ta.ema(close, emaFast)
+es = ta.ema(close, emaSlow)
+longTrend  = ef > es
+shortTrend = ef < es
+
+// === Regime gate (fork: ER vs ADX) ===
+chg = math.abs(close - close[erLen])
+vol = math.sum(math.abs(close - close[1]), erLen)
+er  = vol != 0 ? chg / vol : 0.0
+[diplus, diminus, adx] = ta.dmi(adxLen, adxLen)
+regimeOn = useADX ? (adx >= adxThr) : (er >= erThr)
+
+// ablation toggle: set false to test always-on trend (regime removed)
+gateEnabled = input.bool(true, "ABLATION: regime gate enabled")
+gate = gateEnabled ? regimeOn : true
+
+if gate and longTrend and strategy.position_size <= 0
+    strategy.entry("L", strategy.long)
+if gate and shortTrend and strategy.position_size >= 0
+    strategy.entry("S", strategy.short)
+
+atr = ta.atr(atrLen)
+if strategy.position_size > 0
+    strategy.exit("Lx", "L", stop=strategy.position_avg_price - atrMult*atr)
+if strategy.position_size < 0
+    strategy.exit("Sx", "S", stop=strategy.position_avg_price + atrMult*atr)

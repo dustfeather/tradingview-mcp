@@ -1,0 +1,39 @@
+//@version=6
+// daily-ts-momentum — LOCKED DESIGN, SIGNAL FORK OPEN (scaffold 2026-06-07)
+// Survey rank #2. See plan.md / spec.md. Instrument BYBIT:BTCUSDT.P, daily.
+//
+// Edge = single-asset time-series momentum: sign of trailing 28d return predicts next week.
+// Symmetric long/short, weekly hold. Authoritative net = external fold (klines + funding).
+strategy("daily-ts-momentum", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, process_orders_on_close=true, calc_on_every_tick=false)
+
+// === Pre-registered anchors (spec.md) ===
+formLen = input.int(28,  "Formation lookback (days)")
+holdLen = input.int(7,   "Hold / rebalance (days)")
+useZ    = input.bool(false, "Signal: z-score (else sign)")
+zThr    = input.float(0.5, "z-score threshold", step=0.1)
+zLook   = input.int(90,  "z-score lookback (days)")
+atrLen  = input.int(14,  "ATR length")
+atrMult = input.float(3.0,"ATR stop mult", step=0.5)
+
+// === Signal (fork: sign vs z-score) ===
+trailRet = (close - close[formLen]) / close[formLen]
+zRet     = (trailRet - ta.sma(trailRet, zLook)) / ta.stdev(trailRet, zLook)
+longSig  = useZ ? (zRet >  zThr) : (trailRet > 0)
+shortSig = useZ ? (zRet < -zThr) : (trailRet < 0)
+
+// Weekly rebalance gate: only act every holdLen bars
+var int lastBar = na
+canAct = na(lastBar) or (bar_index - lastBar) >= holdLen
+
+if canAct and longSig and strategy.position_size <= 0
+    strategy.entry("L", strategy.long)
+    lastBar := bar_index
+if canAct and shortSig and strategy.position_size >= 0
+    strategy.entry("S", strategy.short)
+    lastBar := bar_index
+
+atr = ta.atr(atrLen)
+if strategy.position_size > 0
+    strategy.exit("Lx", "L", stop=strategy.position_avg_price - atrMult*atr)
+if strategy.position_size < 0
+    strategy.exit("Sx", "S", stop=strategy.position_avg_price + atrMult*atr)
