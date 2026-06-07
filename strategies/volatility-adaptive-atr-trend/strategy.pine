@@ -1,18 +1,82 @@
 //@version=5
-// strategy.pine — volatility-adaptive-atr-trend (#3)
-// PLACEHOLDER — Phase-1 Pine is blocked on the signal fork (plan.md: A Keltner breakout
-// vs B ATR-channel + MA-cross). Do not push/compile this stub to the chart; it carries no
-// signal yet. Filled in once the formulation is locked.
+// strategy.pine — volatility-adaptive-atr-trend (#3)  ·  Formulation A: Keltner breakout
+// Phase-1. Multi-day vol-adaptive trend follower on BYBIT:BTCUSDT.P, 4H primary.
+// Enter on close beyond an EMA±k·ATR band; hold across days; exit on ATR trail OR midline
+// re-cross OR daily-ATR catastrophe backstop. Symmetric long/short, single position.
 //
-// Locked harness (spec.md): BYBIT:BTCUSDT.P, 4H primary; process_orders_on_close=true;
-// 1x notional 100% equity; pyramiding=0; ATR trail (s anchor 3.0) primary exit +
-// 2.5x prior-day daily-ATR catastrophe backstop; closed-bar look-ahead discipline.
-strategy("VolAdaptive ATR Trend #3 [SCAFFOLD]", overlay=true, pyramiding=0,
+// Look-ahead discipline: intraday EMA/ATR/close are bar-close-confirmed and the fill is at
+// that same close (process_orders_on_close) → no look-ahead. Daily ATR uses [1]+lookahead_off
+// (prior completed daily bar). Net authority = external fold of data_get_trades + Bybit
+// funding; on-chart commission below is a friction-only sanity view (funding NOT included).
+strategy("VolAdaptive ATR Trend #3", overlay=true, pyramiding=0,
      default_qty_type=strategy.percent_of_equity, default_qty_value=100,
-     process_orders_on_close=true, calc_on_every_tick=false)
+     process_orders_on_close=true, calc_on_every_tick=false,
+     commission_type=strategy.commission.percent, commission_value=0.085, slippage=0)
 
-// TODO(Phase-1): implement chosen formulation (A or B) per plan.md.
-// TODO(Phase-1): symmetric long/short, legs tagged separately for per-leg P&L folding.
-// TODO(Phase-1): ATR trailing stop + daily-ATR catastrophe backstop (request.security,
-//                lookahead_off, [1]).
-// TODO(Gate A-ablation): fixed-width envelope variant (k * fixed-% instead of k * ATR).
+// ── Inputs (anchors written before backtest; sweep grids are robustness fans) ──
+L        = input.int(20,   "Length (EMA + ATR)",       minval=2)     // sweep {10, 20, 40}
+k        = input.float(2.0, "Band mult k",             minval=0.1, step=0.1) // sweep {1.5, 2.0, 2.5}
+s        = input.float(3.0, "Trail ATR mult s",        minval=0.1, step=0.1) // sweep {2.5, 3.0, 3.5}
+hardMult = input.float(2.5, "Catastrophe daily-ATR mult", minval=0.1, step=0.1) // sweep {2.0, 2.5, 3.0}
+// Gate A-ablation: bands adaptive (k·ATR) vs fixed-width (k·pct·price). Toggles ENTRY band
+// only; the ATR trail stays ATR-based either way, isolating band-adaptation's contribution.
+useAdaptive = input.bool(true,  "Adaptive bands (off = fixed-% ablation)")
+fixedPct    = input.float(1.5,  "Fixed band % of price (ablation)", minval=0.01, step=0.1)
+// IS/OOS window (full 2023–2025 by default; restrict at gates)
+startT = input.time(timestamp("2023-01-01 00:00 +0000"), "Window start")
+endT   = input.time(timestamp("2026-01-01 00:00 +0000"), "Window end")
+inWin  = time >= startT and time <= endT
+
+// ── Envelope ──
+midline = ta.ema(close, L)
+atr     = ta.atr(L)
+offset  = useAdaptive ? k * atr : k * (fixedPct / 100.0) * close
+upper   = midline + offset
+lower   = midline - offset
+
+// Daily ATR for catastrophe backstop — prior completed daily bar, no look-ahead
+dATR = request.security(syminfo.tickerid, "D", ta.atr(14)[1], lookahead=barmerge.lookahead_off)
+
+// ── State ──
+var float hh       = na   // highest high since entry (long trail)
+var float ll       = na   // lowest low since entry (short trail)
+var float trailStp = na
+var float hardStp  = na
+
+longSig  = close > upper
+shortSig = close < lower
+
+// ── Exits (always evaluated, even outside window, so positions can flatten) ──
+if strategy.position_size > 0
+    hh       := math.max(nz(hh, high), high)
+    trailStp := hh - s * atr
+    if close <= trailStp or close <= hardStp or close < midline
+        strategy.close("L", comment="exitL")
+if strategy.position_size < 0
+    ll       := math.min(nz(ll, low), low)
+    trailStp := ll + s * atr
+    if close >= trailStp or close >= hardStp or close > midline
+        strategy.close("S", comment="exitS")
+
+// ── Entries (flat + in-window only; flat-then-re-enter, never same-bar reverse) ──
+canEnter = inWin and strategy.position_size == 0
+if canEnter and longSig
+    strategy.entry("L", strategy.long)
+    hh      := high
+    hardStp := close - hardMult * dATR
+if canEnter and shortSig
+    strategy.entry("S", strategy.short)
+    ll      := low
+    hardStp := close + hardMult * dATR
+
+// ── Reset on flat ──
+if strategy.position_size == 0
+    hh       := na
+    ll       := na
+    trailStp := na
+    hardStp  := na
+
+// ── Plots ──
+plot(midline, "Midline", color.new(color.gray, 0))
+plot(upper,   "Upper",   color.new(color.teal, 0))
+plot(lower,   "Lower",   color.new(color.red, 0))

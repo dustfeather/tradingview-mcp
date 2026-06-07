@@ -1,12 +1,12 @@
 # Plan — volatility-adaptive-atr-trend (#3)
 
-Status: **scaffolded, design locked except the signal fork.** One open decision blocks
-Phase-1 Pine: which ATR/vol-adaptive entry formulation to build. Both are specified below
-with tradeoffs. Everything else is locked in `spec.md`.
+Status: **Phase-1 — Formulation A (Keltner breakout) locked & written.** Fork resolved
+2026-06-07: A chosen for parsimony + cleaner Gate A-ablation. `strategy.pine` written,
+pending compile. Everything else locked in `spec.md`.
 
 ---
 
-## The open fork — pick A or B before Phase-1
+## The fork (RESOLVED → A) — pick A or B before Phase-1
 
 Both are genuine ATR/vol-adaptive trend formulations (survey §5 #3). The difference is
 where the volatility-adaptation lives and how many knobs it costs.

@@ -45,16 +45,21 @@ grids are robustness fans, not optimizers.
   microstructure noise that would corrupt an ATR envelope, while still catching a trend
   turn within ~4–8h. 4H over 2023–25 ≈ 6,570 bars — inside TV Strategy-Tester limits.
 
-### Signal — **OPEN FORK (decide in plan.md before Phase-1 Pine)**
-Two candidate formulations are specified in `plan.md` with tradeoffs. Both are
-ATR/vol-adaptive trend; the choice is locked by the user before any Pine is written:
-- **A — Keltner breakout:** EMA midline ± k·ATR bands; enter on close beyond a band.
-- **B — ATR-channel + MA-cross gate:** MA-cross direction, armed only when displacement
-  from the slow MA exceeds m·ATR (vol-scaled noise threshold, survey §6 wording).
-
-Until the fork is resolved this section is intentionally incomplete. Whichever wins, the
-**parameter budget is ≤3 knobs** (matching #2's parsimony discipline — the survey's #1
-red flag is classifier/overfit risk, and #3's filter-lag risk compounds it).
+### Signal — **LOCKED: Formulation A, Keltner breakout** (user pick 2026-06-07)
+- **Envelope:** `midline = EMA(close, L)`; `offset = k·ATR(L)`;
+  `upper = midline + offset`, `lower = midline − offset`.
+- **Entry:** flat → enter **long** on `close > upper`, **short** on `close < lower`
+  (bar-close-confirmed; fill at that close via `process_orders_on_close`).
+- **Exit (whichever first):** ATR trailing stop (see Stop) OR `close` re-crosses the
+  midline OR daily-ATR catastrophe backstop.
+- **Flat-then-re-enter, never same-bar reverse.** Entries gate on `position_size == 0`;
+  a bar that exits cannot also re-enter (state still non-flat) → re-entry earliest next bar.
+- **3 knobs:** `L` (EMA+ATR length, anchor **20**, sweep `{10,20,40}`), `k` (band width,
+  anchor **2.0**, sweep `{1.5,2.0,2.5}`), `s` (trail multiple, in Stop). Anchors written
+  before the first backtest; grids are robustness fans, not a search.
+- **Known cost of A (accepted):** breakout entries are taker-heavy (cross the spread,
+  survey §3.2) → the entry leg pays full friction; modelled at 0.085%/side. No separate
+  chop filter ⇒ band width `k` + the trail are the only whipsaw defence.
 
 ### Direction — **the #3 kill discipline**
 - **Symmetric long & short, identical logic.** No directional prior baked in.

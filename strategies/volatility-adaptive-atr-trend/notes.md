@@ -2,6 +2,17 @@
 
 Running log. Newest first.
 
+## 2026-06-07 — Phase-1: Formulation A locked
+- Fork resolved → **A (Keltner breakout)**. Reason: parsimony (3 knobs), cleanest read on
+  Gate A-ablation (band-adaptation isolated; ATR trail held constant across the toggle).
+- `strategy.pine` written: EMA(L)±k·ATR(L) bands, close-beyond-band entry, ATR chandelier
+  trail (s) + midline re-cross + 2.5×daily-ATR catastrophe backstop, flat-then-re-enter.
+- Ablation wired as a single input toggle `useAdaptive` (off ⇒ fixed-% band k·pct·price);
+  trail stays ATR either way so the toggle isolates the namesake mechanism.
+- Anchors: L=20, k=2.0, s=3.0, hardMult=2.5. Sweeps declared in inputs as comments.
+- On-chart commission 0.085%/side = friction sanity only; funding folded externally.
+- **Next:** compile clean (needs TV running), sanity trade count on 4H IS window → Gate A.
+
 ## 2026-06-07 — Scaffold (#3 opened, fallback candidate)
 - #1 (intraday-tsmom-deriv-confirmed) shelved: Gate A falsified.
 - #2 (regime-filtered-momentum) shelved: Gate B FAIL (decisive) — ER regime gate did not
