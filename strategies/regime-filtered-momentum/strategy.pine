@@ -1,0 +1,89 @@
+//@version=6
+// regime-filtered-momentum (#2) — Phase 1
+// Trailing-L TS momentum gated by Kaufman Efficiency Ratio, held multi-day while the
+// regime trends. Symmetric long/short. Designed to run on the 4H chart of BYBIT:BTCUSDT.P.
+// Engine = TV-native Strategy Tester; funding + exact friction folded externally from
+// data_get_trades. See spec.md "Locked decisions".
+//
+// Friction: 0.085%/side via percent commission (taker 0.055 + slippage 0.030), round-trip
+// 0.17%. Funding is NOT modeled here — first-class signed cost computed externally.
+strategy("Regime-Filtered Momentum #2",
+     overlay              = true,
+     initial_capital      = 100000,
+     default_qty_type     = strategy.percent_of_equity,
+     default_qty_value    = 100,            // 1x notional, 100% equity
+     pyramiding           = 0,              // single position, no adds
+     commission_type      = strategy.commission.percent,
+     commission_value     = 0.085,          // per side
+     slippage             = 0,              // slippage folded into the 0.085%
+     process_orders_on_close = true,        // fill on signal-bar close
+     calc_on_every_tick   = false)
+
+// ── Inputs (a-priori anchors; sweep grids declared in spec, not searched here) ──────────
+int   L         = input.int(20,   "Lookback L (ER window = momentum window)", minval = 2)
+float tauEntry  = input.float(0.35, "ER entry threshold", minval = 0.0, maxval = 1.0, step = 0.05)
+float tauExit   = input.float(0.25, "ER exit threshold (hysteresis)", minval = 0.0, maxval = 1.0, step = 0.05)
+float atrMult   = input.float(2.5,  "ATR stop mult (x prior-day daily ATR)", minval = 0.5, step = 0.5)
+int   atrLen    = input.int(14,   "Daily ATR length", minval = 1)
+bool  regimeGate = input.bool(true, "Regime gate ON (uncheck = ungated ablation baseline)")
+
+// IS/OOS window: trade only inside [start, end). Gate A → end 2024-07-01; Gate B → start 2024-07-01.
+int startTime = input.time(timestamp("2023-01-01 00:00 +0000"), "Window start")
+int endTime   = input.time(timestamp("2026-01-01 00:00 +0000"), "Window end")
+bool inWindow = time >= startTime and time < endTime
+
+// ── Kaufman Efficiency Ratio + momentum (closed-bar; bar-close execution) ───────────────
+float netChange  = math.abs(close - close[L])
+float pathLength = math.sum(math.abs(close - close[1]), L)
+float er  = pathLength != 0.0 ? netChange / pathLength : 0.0
+
+float mom     = close - close[L]
+int   momSign = mom > 0 ? 1 : mom < 0 ? -1 : 0
+
+// ── Regime hysteresis: arm above tauEntry, disarm below tauExit, hold between ───────────
+var bool inRegime = false
+if er > tauEntry
+    inRegime := true
+else if er < tauExit
+    inRegime := false
+bool effRegime = regimeGate ? inRegime : true   // ungated baseline = always "in regime"
+
+// ── Prior-day daily ATR (no look-ahead: prior completed daily bar) ──────────────────────
+float dailyAtr = request.security(syminfo.tickerid, "D", ta.atr(atrLen)[1],
+     lookahead = barmerge.lookahead_off)
+
+// ── State ───────────────────────────────────────────────────────────────────────────────
+bool inPos  = strategy.position_size != 0
+int  posDir = strategy.position_size > 0 ? 1 : strategy.position_size < 0 ? -1 : 0
+
+// Entry trigger:
+//  gated   = fresh ER cross above tauEntry (re-entry requires a fresh crossing, never a reverse)
+//  ungated = enter on any momentum sign whenever flat (always-on momentum baseline)
+bool gatedEntry   = ta.crossover(er, tauEntry) and momSign != 0
+bool ungatedEntry = momSign != 0
+bool enterNow     = inWindow and not inPos and (regimeGate ? gatedEntry : ungatedEntry)
+
+// Soft exits: regime collapse OR momentum flip → FLAT (not reverse)
+bool exitCollapse = regimeGate and er < tauExit
+bool exitFlip     = inPos and momSign != 0 and momSign != posDir
+bool forceFlat    = not inWindow   // outside test window → flat
+
+// ── Orders ──────────────────────────────────────────────────────────────────────────────
+if inPos and (exitCollapse or exitFlip or forceFlat)
+    strategy.close_all(comment = forceFlat ? "win" : exitCollapse ? "regime" : "flip")
+
+if enterNow
+    if momSign > 0
+        strategy.entry("L", strategy.long)
+    else
+        strategy.entry("S", strategy.short)
+
+// ATR catastrophe backstop (intrabar stop on the held position)
+if strategy.position_size > 0
+    strategy.exit("xL", from_entry = "L", stop = strategy.position_avg_price - atrMult * dailyAtr)
+if strategy.position_size < 0
+    strategy.exit("xS", from_entry = "S", stop = strategy.position_avg_price + atrMult * dailyAtr)
+
+// ── Visuals ─────────────────────────────────────────────────────────────────────────────
+bgcolor(effRegime ? color.new(color.teal, 88) : na, title = "In-regime")
+plotchar(er, "ER", "", location = location.bottom, color = color.gray)
