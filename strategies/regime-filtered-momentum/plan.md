@@ -15,23 +15,23 @@ room to clear cost.
 - [x] Funding = **first-class signed cost**, Bybit `/v5/market/funding/history` via
       `ctx_execute`+curl. **Verify 2023-01 coverage before Phase 1.**
 
-## Phase 1 — base signal, regime-gated  ← NEXT (write strategy.pine)
-- [ ] **Signal:** `sign(close − close[L])`; **Gate:** Kaufman ER over L `> τ`.
+## Phase 1 — base signal, regime-gated  ✅ Gate A + ablation PASS (2026-06-07)
+- [x] **Signal:** `sign(close − close[L])`; **Gate:** Kaufman ER over L `> τ`.
       Single lookback **L=20** (M=N=L), τ_entry **0.35** / τ_exit **0.25** (hysteresis).
-- [ ] **Structure (b):** enter on `ER>τ_entry` + momentum sign → **hold across days** →
+- [x] **Structure (b):** enter on `ER>τ_entry` + momentum sign → **hold across days** →
       exit on `ER<τ_exit` OR momentum-flip (→ FLAT) OR ATR stop. Single position, no
       pyramiding. `process_orders_on_close=true`, fill on signal-bar close.
-- [ ] **Stop:** `2.5 × prior-day daily ATR` via `request.security(lookahead_off)`+`[1]`.
-- [ ] **Symmetric** long/short; instrument long & short P&L separately.
-- [ ] **Look-ahead discipline:** ER/momentum on `[1]`, hysteresis flag in `var`.
-- [ ] Push: `pine_set_source` → `pine_smart_compile`, confirm clean compile.
-- [ ] **Gate A (fee bar, IS 2023-01→2024-06):** pull `data_get_trades`, compute net
-      (− friction − Σ signed funding). **Pass = net PF>1.3 AND mean net/trade>0 AND
-      ≥30 trades/leg.** Below 30/leg → inconclusive, not pass.
-- [ ] **Gate A-ablation (mandatory):** ER-gated net expectancy **>** ungated always-on
-      momentum (same L, same costs). **Fail → regime gate adds nothing → STOP, shelve #2.**
+- [x] **Stop:** `2.5 × prior-day daily ATR` via `request.security(lookahead_off)`+`[1]`.
+- [x] **Symmetric** long/short; instrument long & short P&L separately.
+- [x] Push: `pine_set_source` → `pine_smart_compile`, clean compile (TV-native).
+- [x] **Gate A (fee bar, IS 2023-01→2024-06): PASS (conditional).** Net computed
+      externally on Bybit klines (TV read path broken). **ALL: n=118, net PF 1.44,
+      net/trade +0.424%** (≥30/leg ✓). **Caveat:** all edge is the long leg in a bull;
+      short leg loses (PF 0.51). Both-legs test deferred to Gate B.
+- [x] **Gate A-ablation: PASS.** Gated +0.424%/t (PF 1.44) **>** ungated +0.164%/t
+      (PF 1.18) → ER gate concentrates the edge; not decoration.
 
-## Phase 2 — OOS stability
+## Phase 2 — OOS stability  ← NEXT (Gate B)
 - [ ] **Gate B (OOS 2024-07→2025-12):** net PF>1.3 & positive net expectancy survive OOS,
       **both legs contributing** (not one carrying the other). OOS N collapse →
       inconclusive, not pass. Regime generalization is #2's dominant risk → this is the

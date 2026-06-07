@@ -71,4 +71,33 @@ flag." This is a hypothesis test, not a known winner.
     Mandatory **Phase-1 ablation** (gated vs ungated). Gate B (OOS, both legs) = dominant
     test. Final = PF>1.3 & per-trade>0.20% both IS&OOS, positive each year, both anchors,
     survive leverage.
-  - strategy.pine **NOT yet written** — Phase 1 is the next turn.
+  - strategy.pine **written + compiles clean** (TV-native, 4H, ablation toggle + IS/OOS
+    window inputs). Backtests on BYBIT:BTCUSDT.P 4H.
+- 2026-06-07 — **Gate A: PASS (conditional) + ablation PASS.** Computed externally on
+  Bybit klines (TV `data_get_strategy_results`/`data_get_trades` read path broken —
+  "No strategy found on chart" though the tester visibly computes; same internal_api
+  failure class #1 hit). External replication of the exact Pine logic is authoritative
+  per spec's external-net approach. Bybit funding history confirmed back to 2022-12.
+  - IS 2023-01→2024-06, gated L=20, τ0.35/0.25, 0.085%/side, signed funding folded:
+    - **ALL: n=118, net PF 1.44, net/trade +0.424%** (gross +0.617% − fric 0.17% −
+      fund +0.022%), win 27.1%. → clears Gate A thresholds (PF>1.3, net/t>0, ≥30/leg).
+    - LONG: n=61, PF 2.27, net/t **+1.250%**. SHORT: n=57, PF 0.51, net/t **−0.460%**.
+  - **Ablation (mandatory): gate ADDS value.** Gated +0.424%/t (PF 1.44, n=118) vs
+    ungated always-on momentum +0.164%/t (PF 1.18, n=278). ER gate roughly doubles
+    per-trade net, lifts PF, halves trade count → the regime classifier concentrates the
+    edge; not decoration.
+  - **Headline risk → Gate B:** the entire positive result is the LONG leg riding the
+    2023→mid-2024 bull (long PF 2.27); the SHORT leg is a net loser (PF 0.51). This is the
+    bull-beta shape the spec warned of — "a fail dressed as a pass" unless OOS shows BOTH
+    legs contribute. Gate A is IS-only and a strong bull dominates IS, so it proves little
+    about genuine edge; **Gate B (OOS, both legs) is the real verdict.**
+  - **Diagnostic:** exit mix = 100% regime-collapse (er<τ_exit). Momentum-flip and ATR-stop
+    never bound in IS (ER decays before momentum flips; 2.5× daily-ATR stop very wide).
+    Consistent with design (soft regime exit primary), but flip-vs-reverse and stop-mult
+    choices are untested by IS data.
+  - **Cross-check caveat:** TV's own full-range (2023–25, incl. OOS) tester showed gross
+    PF ≈ 0.36 — far below the IS 1.44. If real, it implies OOS is sharply negative
+    (foreshadows Gate B trouble); could also be replication/fill divergence. Reconcile at
+    Gate B (re-run external on OOS window + compare to TV).
+  - **Action:** Gate A + ablation pass → proceed to **Phase 2 / Gate B (OOS
+    2024-07→2025-12)**, scrutinizing both-legs-contribute. Do NOT tune; OOS is the judge.
