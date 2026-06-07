@@ -2,6 +2,37 @@
 
 Running log. Newest first.
 
+## 2026-06-07 — Gate A FAIL (decisive) + ablation FAIL → SHELVE #3
+External sim on Bybit 4H+daily klines, IS window 2023-01→2024-06, anchors L=20 k=2.0
+s=3.0, friction 0.085%/side. Funding folded but coverage partial (Bybit
+`/v5/market/funding/history` pager returned only newest 200 rows; fund/tr ≈ 0.002% —
+three orders below the per-trade edge, immaterial; and funding only subtracts from a
+long-carried book, so it cannot rescue a sub-threshold PF).
+
+Results (net of friction+funding):
+- **ALL:** n=73, PF=**1.28**, exp=+0.420%/tr
+- **LONG:** n=39, PF=2.46, exp=+1.846%
+- **SHORT:** n=34, PF=**0.32**, exp=−1.217%
+- Ablation FIXED-% (k·1.5%·price, ATR trail held constant): ALL exp=**0.565%** (n=64)
+
+Three independent fails at anchors:
+1. **Gate A FAIL** — combined net PF 1.28 < 1.3 threshold.
+2. **Ablation FAIL** — adaptive exp 0.420% < fixed-% exp 0.565%. The vol-adaptation (the
+   entire thesis of #3) is not merely unhelpful, it is **strictly worse** than a dumb
+   fixed-width band. Namesake mechanism falsified.
+3. **Gate-B preview / bull-artifact** — the +0.420% combined is entirely the long leg
+   (PF 2.46); the short leg collapses (PF 0.32, exp −1.217%). The book is levered long
+   beta riding 2023–24 BTC appreciation, not a trend edge — exactly the survey's named #3
+   risk ([ATR systems](https://doi.org/10.1002/for.2906) long>short = bull artifact).
+
+Verdict: **shelve #3.** No tuning past the failed gate (spec discipline); the ablation
+kill is structural, not a tuning miss — a parameter sweep cannot make adaptation beat its
+own fixed-% twin when it loses at the anchor by 0.145%/trade.
+
+Meta: #1, #2, #3 were the survey's *entire* ranked shortlist (§5). All three falsified on
+BTC-perp. The backlog is exhausted; next requires a new survey axis (different instrument,
+resolution, or the excluded families §4), not another shortlist candidate.
+
 ## 2026-06-07 — Phase-1: Formulation A locked
 - Fork resolved → **A (Keltner breakout)**. Reason: parsimony (3 knobs), cleanest read on
   Gate A-ablation (band-adaptation isolated; ATR trail held constant across the toggle).

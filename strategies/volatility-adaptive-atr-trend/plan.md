@@ -1,8 +1,8 @@
 # Plan — volatility-adaptive-atr-trend (#3)
 
-Status: **Phase-1 — Formulation A (Keltner breakout) locked & written.** Fork resolved
-2026-06-07: A chosen for parsimony + cleaner Gate A-ablation. `strategy.pine` written,
-pending compile. Everything else locked in `spec.md`.
+Status: **SHELVED 2026-06-07 — Gate A FAIL (PF 1.28<1.3) + ablation FAIL (adaptive
+0.420% < fixed-% 0.565%) + short-leg collapse (PF 0.32 = bull artifact).** See notes.md.
+Formulation A was locked & compiled; the vol-adaptation thesis is falsified — do not tune.
 
 ---
 
