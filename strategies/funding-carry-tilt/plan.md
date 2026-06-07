@@ -40,5 +40,8 @@ No cited source proves the *single-leg directional* variant is net-positive; the
 high Sharpe (BIS WP1087) is on the delta-neutral two-leg trade, which is out of v1 scope.
 
 ## Status
-Scaffolded — locked design, **signal fork open**. No backtest run. Anchors pre-registered in
-`spec.md` before first run (anchors-before-backtest discipline).
+**SHELVED (2026-06-07)** — Gate A + ablation FAIL, decisive. Short leg net −376% / PF 0.53;
+combined loses to always-long in ablation; FAIL both IS and OOS. The single-leg directional
+tilt can't survive the unhedged price risk (funding-positive ⇒ rising price ⇒ short bleeds
+faster than it earns). Survey honesty caveat upheld. See `notes.md` log. Revival path is
+delta-neutral 2-leg — out of v1 single-instrument scope, defer to v2.

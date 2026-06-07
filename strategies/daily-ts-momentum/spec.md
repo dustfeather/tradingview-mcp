@@ -1,7 +1,8 @@
 # daily-ts-momentum — Spec (pre-registered)
 
 Instrument: `BYBIT:BTCUSDT.P` · Timeframe: `D` · Symmetric long/short, **P&L per leg**.
-External fold authoritative — replay exact Pine over Bybit klines + full funding history.
+External fold authoritative — `scripts/run_fold.js` replays `signal.js` over Bybit klines +
+full funding history (no Pine; backtest-only).
 
 ## Pre-registered anchors (locked before first run)
 

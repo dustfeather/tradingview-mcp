@@ -1,8 +1,9 @@
 # funding-carry-tilt — Spec (pre-registered)
 
 Instrument: `BYBIT:BTCUSDT.P` · Timeframe: `D` · Symmetric long/short, **P&L per leg**.
-External fold authoritative (TV strategy-tester read is broken) — replay exact Pine logic over
-Bybit klines + full funding history.
+External fold authoritative (TV strategy-tester read is broken) — `scripts/run_fold.js` replays
+`signal.js` over Bybit klines + full funding history (no Pine; funding is the signal, only
+readable in the external fold).
 
 ## Pre-registered anchors (locked before first run)
 Funding stamps on Bybit linear perps post every **8h** → 3/day, 21/week.
