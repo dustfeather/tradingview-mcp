@@ -1,0 +1,87 @@
+//@version=6
+// Derivatives-Confirmed Intraday TS Momentum — BTC Perp (Bybit)
+// PHASE 1 (price-only). Goal: prove the fee bar BEFORE adding regime gate
+// (Phase 2) and derivative confirmation (Phase 3). See spec.md / plan.md.
+//
+// Locked Phase-1 design (grilled 2026-06-07):
+//   - Symbol BYBIT:BTCUSDT.P @ 30-min. Day pinned to UTC.
+//   - Early-session return = first 30-min bar of UTC day (00:00-00:30 UTC):
+//       earlyRet = close - open of that single bar.
+//   - direction = sign(earlyRet); arm when |earlyRet| > armMult * ATR30.
+//   - Structure (A): market entry at 00:30 close, hold, flatten at 00:00 UTC.
+//   - Two ATRs: 30-min ATR arms entry; PRIOR-day daily ATR sizes stop + R.
+//   - Kill-switch: skip entries after maxLossesDay consecutive LOSING DAYS
+//       (one trade/day => +3R intraday cap is unreachable, dropped).
+//   - 1x / 100% equity. Friction folded to 0.085%/side percent commission
+//       (taker 0.055 + mid slippage 0.030); tick-slippage = 0 (price-level
+//       invariant across the $16k->$100k 2023-2025 window).
+//   - process_orders_on_close=true so entry fills at 00:30 close and the EOD
+//       close_all fills at the 00:00 close (no 30-min next-bar distortion).
+strategy("Intraday TSMOM (deriv-confirmed)",
+     overlay              = true,
+     pyramiding           = 0,                       // single position, hard
+     calc_on_every_tick   = false,
+     process_orders_on_close = true,                 // fill at signal-bar close
+     commission_type      = strategy.commission.percent,
+     commission_value     = 0.085,                    // friction %/side = taker 0.055 + slippage 0.030. const (strategy() needs const); sweep 0.065->0.135 by editing here
+     slippage             = 0,                        // friction modeled in commission %, NOT ticks
+     default_qty_type     = strategy.percent_of_equity,
+     default_qty_value    = 100)                      // 1x
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+grpSig  = "Signal"
+atrLen       = input.int(14,    "ATR length",                        minval = 1,   group = grpSig)
+armMult      = input.float(1.0, "Arm threshold (x 30m ATR)",         minval = 0.0, step = 0.1, group = grpSig)
+
+grpRisk = "Risk / guardrails"
+atrStopMult  = input.float(1.0, "ATR stop multiple (x daily ATR)",   minval = 0.1, step = 0.1, group = grpRisk)
+maxLossesDay = input.int(2,     "Daily kill: consecutive losing days", minval = 1, group = grpRisk)
+
+// ── Time anchors (UTC-pinned) ───────────────────────────────────────────────
+// First 30-min bar of the UTC day: opens 00:00, closes 00:30.
+isFirstBar = hour(time, "UTC") == 0      and minute(time, "UTC") == 0
+// Last 30-min bar of the UTC day: opens 23:30, closes exactly 00:00 next day.
+isLastBar  = hour(time_close, "UTC") == 0 and minute(time_close, "UTC") == 0
+
+// ── Signal ──────────────────────────────────────────────────────────────────
+atr30   = ta.atr(atrLen)                                  // 30-min ATR -> arm gate
+// prior completed daily ATR (lookahead_off => yesterday's confirmed value intraday)
+dATR    = request.security(syminfo.tickerid, "D", ta.atr(atrLen), lookahead = barmerge.lookahead_off)
+
+earlyRet  = close - open                                  // only meaningful on isFirstBar
+armedLong  = isFirstBar and earlyRet >  armMult * atr30
+armedShort = isFirstBar and earlyRet < -armMult * atr30
+
+// ── Kill-switch: consecutive losing days ────────────────────────────────────
+var int consecLoss      = 0
+var int lastClosedCount = 0
+if strategy.closedtrades > lastClosedCount
+    p = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    consecLoss      := p < 0 ? consecLoss + 1 : 0
+    lastClosedCount := strategy.closedtrades
+tradingAllowed = consecLoss < maxLossesDay
+
+// ── Entry (Phase 1: price-only) ─────────────────────────────────────────────
+// TODO(phase2): AND regime gate (vol/trend-strength in-window).
+// TODO(phase3): AND derivative confirmation (OI build + funding-not-extreme; liq-cluster veto).
+//   Derivatives are NOT on the Pine chart — wire via MCP overlay / precomputed input in Phase 3.
+canEnter = isFirstBar and tradingAllowed and strategy.position_size == 0
+if canEnter and armedLong
+    strategy.entry("L", strategy.long)
+if canEnter and armedShort
+    strategy.entry("S", strategy.short)
+
+// ── Exits / guardrails ──────────────────────────────────────────────────────
+// ATR stop from entry (daily-ATR sized). R unit = atrStopMult * dATR.
+if strategy.position_size > 0
+    strategy.exit("L stop", "L", stop = strategy.position_avg_price - atrStopMult * dATR)
+if strategy.position_size < 0
+    strategy.exit("S stop", "S", stop = strategy.position_avg_price + atrStopMult * dATR)
+
+// EOD flatten — unconditional, fills at 00:00 UTC close (process_orders_on_close).
+if isLastBar and strategy.position_size != 0
+    strategy.close_all(comment = "EOD")
+
+// ── Visual sanity ────────────────────────────────────────────────────────────
+plotchar(isFirstBar, "early bar", "▲", location.bottom, color = color.new(color.teal, 50), size = size.tiny)
+plotchar(isLastBar,  "eod bar",   "▼", location.top,    color = color.new(color.maroon, 50), size = size.tiny)
