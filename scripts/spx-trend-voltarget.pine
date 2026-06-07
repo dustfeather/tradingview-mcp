@@ -48,6 +48,8 @@ strategy("SPX Trend + VolTarget", overlay = true, calc_on_every_tick = false,
 grp_gate = "Trend gate"
 grp_size = "Vol targeting"
 grp_fee  = "Broker financing (Alpaca)"
+grp_win  = "Backtest window"
+grp_disp = "Display"
 
 ma_len     = input.int(200,  title = "Trend MA length (bars)", minval = 20, maxval = 400, group = grp_gate, tooltip = "Long only when close is above this SMA. ~200d = Faber-style 10-month trend filter.")
 ma_type    = input.string("SMA", title = "Trend MA type", options = ["SMA","EMA"], group = grp_gate)
@@ -58,6 +60,14 @@ max_lev    = input.float(1.5,  title = "Max leverage", minval = 0.1, maxval = 5.
 rebal_band = input.float(0.10, title = "Rebalance dead-band", minval = 0.01, maxval = 0.50, step = 0.01, group = grp_size, tooltip = "Only rebalance when target notional drifts more than this fraction from current. Limits churn/commissions.")
 
 financing_pct = input.float(6.25, title = "Margin rate (%/yr)", minval = 0.0, maxval = 20.0, step = 0.25, group = grp_fee, tooltip = "Annual interest charged on the BORROWED slice (notional - equity). Alpaca standard ~6.25% (5% Elite). Drives the net-of-financing equity curve in the diagnostics table.")
+
+use_window = input.bool(false, title = "Limit to date window", group = grp_win, tooltip = "When ON, trading + diagnostics only count bars inside [Start, End]. Use to pin a COMMON period across symbols (different tickers have different history depth → otherwise non-comparable). Default OFF = full loaded history.")
+win_start  = input.time(timestamp("2005-01-01T00:00"), title = "Start", group = grp_win)
+win_end    = input.time(timestamp("2100-01-01T00:00"), title = "End",   group = grp_win)
+in_window  = not use_window or (time >= win_start and time <= win_end)
+
+table_pos = input.string("Bottom Left", title = "Diagnostics table position", options = ["Top Left","Top Center","Top Right","Middle Left","Middle Center","Middle Right","Bottom Left","Bottom Center","Bottom Right"], group = grp_disp, tooltip = "Where the net-of-financing diagnostics table is drawn on the chart.")
+tpos = table_pos == "Top Left" ? position.top_left : table_pos == "Top Center" ? position.top_center : table_pos == "Top Right" ? position.top_right : table_pos == "Middle Left" ? position.middle_left : table_pos == "Middle Center" ? position.middle_center : table_pos == "Middle Right" ? position.middle_right : table_pos == "Bottom Center" ? position.bottom_center : table_pos == "Bottom Right" ? position.bottom_right : position.bottom_left
 
 // ── Trend gate ───────────────────────────────────────────────────────────────
 ma        = ma_type == "EMA" ? ta.ema(close, ma_len) : ta.sma(close, ma_len)
@@ -72,7 +82,7 @@ lev    = na(rvol) or rvol <= 0 ? 0.0 : math.min(max_lev, target_vol / rvol)
 desired_qty = trend_up ? (strategy.equity * lev) / close : 0.0
 
 // ── Rebalance to target with dead-band ──────────────────────────────────────
-if barstate.isconfirmed
+if barstate.isconfirmed and in_window
     diff = desired_qty - strategy.position_size
     band = math.max(desired_qty * rebal_band, na(rvol) ? 1e18 : 0.0)  // when no vol yet, band huge → no trade
     if desired_qty == 0 and strategy.position_size > 0
@@ -98,7 +108,7 @@ var float npeak      = na
 var float gmaxdd     = 0.0
 var float nmaxdd     = 0.0
 
-if barstate.isconfirmed
+if barstate.isconfirmed and in_window
     geq = strategy.equity
     pv  = strategy.position_size * close
     borrowed = math.max(0.0, pv - geq)
@@ -121,7 +131,7 @@ if barstate.isconfirmed
         gmaxdd := math.max(gmaxdd, (gpeak - geq) / gpeak)
         nmaxdd := math.max(nmaxdd, (npeak - net_eq) / npeak)
 
-var table tdiag = table.new(position.bottom_left, 2, 6, bgcolor = color.new(color.black, 15), border_width = 1, border_color = color.gray)
+var table tdiag = table.new(tpos, 2, 6, bgcolor = color.new(color.black, 15), border_width = 1, border_color = color.gray)
 if barstate.islast and nbars > 1
     yrs   = nbars / 252.0
     init  = strategy.initial_capital
