@@ -31,3 +31,16 @@ Scaffolded 2026-06-07. Locked design, signal fork open. No runs yet.
     Near-zero beta (genuinely market-neutral), but thin and low time-in-market (~16%).
   - **Next:** try to lift Sharpe above 0.5 without fitting — e.g. Bollinger fork, vol-scaled
     sizing, or relax the SMA200 filter. Improvement must hold OOS, beta stays <0.3.
+- **2026-06-07 — improvement attempt: NO variant clears the keep bar without fitting. Stays
+  MARGINAL.** Pre-registered fan (6 mechanically-motivated variants), judged on OOS, discipline =
+  reject any with IS→OOS alpha sign-flip (would not have been selectable in real time):
+  - V0 baseline (RSI2/SMA200/SMA5): IS S=0.32 → OOS S=0.43. Consistent, < 0.5.
+  - V1 + inverse-vol sizing (tgt 3%/d, 20): OOS S=0.40 — *worse*; the expected Sharpe lift didn't
+    appear. Dropped.
+  - V3 exit-on-RSI>50: IS 0.23 → OOS 0.45. Consistent, marginally better, still < 0.5.
+  - V2 RSI(3) / V4 thr 5-95 / V5 RSI3+volscale: OOS Sharpe 1.04 / 0.84 / 1.04 — BUT **IS alpha
+    NEGATIVE** (sign-flip), ti≈7% (a few lucky trades). Rejected as OOS-cherry-picks (accepting
+    them = fitting to the hold-out).
+  - **Verdict:** baseline is the honest best; left `signal.js` unchanged. Candidate remains a thin
+    marginal (OOS α +5.9%/yr, Sharpe 0.43, β 0.12). Not a keep. Honest negative result — could not
+    beat the keep bar without overfitting.
