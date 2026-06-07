@@ -101,3 +101,29 @@ flag." This is a hypothesis test, not a known winner.
     Gate B (re-run external on OOS window + compare to TV).
   - **Action:** Gate A + ablation pass → proceed to **Phase 2 / Gate B (OOS
     2024-07→2025-12)**, scrutinizing both-legs-contribute. Do NOT tune; OOS is the judge.
+- 2026-06-07 — **Gate B: FAIL (decisive). SHELVE #2.** OOS 2024-07→2025-12, gated L=20,
+  external net (Bybit klines + signed funding):
+  - **ALL: n=120, net PF 0.829, net/trade −0.182%, totRet −21.8%.** N not collapsed
+    (60/leg) → genuine FAIL, not inconclusive. (vs IS PF 1.44 / +0.424%.)
+  - LONG: PF 1.079, net/t +0.080% (barely breakeven). SHORT: PF 0.602, net/t −0.443%
+    (bleeds). **Both-legs-contribute test FAILS** — no genuine two-sided edge.
+  - **Ablation flips OOS → gate NULL:** gated −0.182%/t vs ungated −0.101%/t — the regime
+    gate *hurts* out-of-sample. The IS ablation "win" was bull-period overfit. **The
+    regime classifier does not generalize** = the survey's single biggest red flag for #2,
+    realized.
+  - **Per-year decay, monotonic:** 2023 PF 2.25 / +0.92%/t / +69%; 2024 PF 0.90 / −0.10%
+    / −9%; 2025 PF 0.66 / −0.43%/t / −32%. The entire edge is **2023's bull**; 2024 & 2025
+    both lose. Confirms the Gate-A bull-beta diagnosis decisively.
+  - **TV reconcile resolved:** external full-range gated net PF 1.117 (+28% / 3yr); TV
+    tester's gross PF ≈0.36 was non-premium **bar-limited** to the recent (bad 2025)
+    window, not a replication divergence. Consistent.
+  - Exit mix still 100% regime-collapse OOS (flip & ATR-stop never bind) — design behaved
+    as specified; the signal, not the plumbing, failed.
+  - **Premise falsified OOS:** regime-filtered (Kaufman-ER) standalone momentum on
+    BTCUSDT.P 4H does NOT carry a fee-defensible edge beyond a single bull year. Per spec
+    ("vanishes OOS → strip/simplify or shelve") and plan final-gate logic ("fail → shelve,
+    move to #3"): **#2 SHELVED.** No Phase-3 sweep (don't tune past a failed make-or-break
+    gate; a one-year artifact won't survive a parameter fan).
+  - **Next (pending user):** fallback **#3 — Volatility-adaptive (ATR/Keltner) trend
+    momentum** (survey §5). Distinct engine (ATR-adaptive entries/exits, the spec's required
+    ATR stop as the core, not a backstop). New strategy folder, from scratch.

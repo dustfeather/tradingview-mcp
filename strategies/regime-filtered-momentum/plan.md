@@ -31,13 +31,15 @@ room to clear cost.
 - [x] **Gate A-ablation: PASS.** Gated +0.424%/t (PF 1.44) **>** ungated +0.164%/t
       (PF 1.18) → ER gate concentrates the edge; not decoration.
 
-## Phase 2 — OOS stability  ← NEXT (Gate B)
-- [ ] **Gate B (OOS 2024-07→2025-12):** net PF>1.3 & positive net expectancy survive OOS,
-      **both legs contributing** (not one carrying the other). OOS N collapse →
-      inconclusive, not pass. Regime generalization is #2's dominant risk → this is the
-      real test. Vanishes OOS → strip/simplify or shelve.
+## Phase 2 — OOS stability  ❌ Gate B FAILED → #2 SHELVED (2026-06-07)
+- [x] **Gate B (OOS 2024-07→2025-12): FAIL (decisive).** ALL n=120, net PF **0.829**,
+      net/trade **−0.182%**, totRet −21.8% (N not collapsed → genuine fail). Both legs fail
+      to contribute (long +0.08%, short −0.44%). **Ablation flips OOS → gate NULL** (gated
+      worse than ungated). Per-year: edge is 2023-bull only (PF 2.25→0.90→0.66, monotonic).
+      Regime classifier does not generalize OOS — #2's dominant red flag, realized.
+      **Premise falsified → SHELVED.** Do not tune past a failed make-or-break gate.
 
-## Phase 3 — robustness sweep (only if Gate A & B pass)
+## Phase 3 — robustness sweep (only if Gate A & B pass)  — SKIPPED (Gate B failed)
 - [ ] Declared a-priori grids (fans, not optimizers): L∈{10,20,40}, τ_entry∈{0.30,0.35,0.40}
       (τ_exit=τ_entry−0.10), ATR mult∈{2.0,2.5,3.0}. Edge surviving at only one cell = noise.
 - [ ] Confirm no single (L,τ,mult) cell carries the result.
